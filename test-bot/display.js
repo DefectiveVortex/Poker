@@ -90,6 +90,7 @@ module.exports = {
       `display=${count('@e[tag=poker-display]')} seat=${count('@e[tag=poker-seat]')}`);
     const m = a.mark();
     a.cmd('/poker createtable seats:6 small-blind:5 big-blind:10 min-buy-in:10 max-buy-in:200');
-    await a.waitFor(/created/i, m);
+    const line = await a.waitFor(/table #(\d+) created/i, m);
+    ctx.tableId = Number(line.match(/#(\d+)/)[1]); // later scenarios look the table up by id
   },
 };
