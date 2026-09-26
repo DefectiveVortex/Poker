@@ -509,7 +509,7 @@ public class PokerTable implements HoldemListener {
     public void onAction(int seat, ActionType type, long streetBet, boolean allIn, boolean left) {
         ConfigManager cfg = cfg();
         String name = nameAt(seat);
-        String key = allIn && type != ActionType.FOLD ? "allin" : type.name().toLowerCase();
+        String key = type == ActionType.ALL_IN || (allIn && type != ActionType.FOLD) ? "allin" : type.name().toLowerCase();
         lastAction.put(seat, cfg.formatMessage("display-action-" + key, "amount", money(streetBet)));
         refreshSeat(seat);
         refreshPot();
