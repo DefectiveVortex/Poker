@@ -54,10 +54,24 @@ async function nextWindow(bot, previous, timeout = 5000) {
   throw new Error(`${bot.name}: no new window opened`);
 }
 
+// Item names arrive as an NBT compound on 1.20.5+ clients (bots connect as 26.1) and as a JSON string on 1.20.1.
+function flat(x) {
+  if (x == null) return '';
+  if (typeof x === 'string') {
+    const t = x.trim();
+    if (/^[{\["]/.test(t)) { try { return flat(JSON.parse(t)); } catch (e) { /* plain text */ } }
+    return x;
+  }
+  if (typeof x !== 'object') return String(x);
+  if (Array.isArray(x)) return x.map(flat).join('');
+  if (x.type && 'value' in x) return x.type === 'list' ? flat(x.value.value) : flat(x.value); // NBT tag
+  return flat(x.text ?? x['']) + flat(x.extra);
+}
+
 function slotName(window, slot) {
   const item = window.slots[slot];
   if (!item) return null;
-  return item.customName ? String(item.customName) : (item.displayName || item.name);
+  return item.customName ? flat(item.customName) : (item.displayName || item.name);
 }
 
 function conserved(label, bots) {
