@@ -10,15 +10,15 @@ const zlib = require('zlib');
 const { rcon, balance, setBalance, check, sleep } = require('./lib');
 
 const RX = {
-  seated: /You sit down at seat (\d+)/,
-  cards: /Your hole cards: (.+)/,
+  seated: /You (?:sit down at|sat down in) seat (\d+)/,
+  cards: /Your (?:hole )?cards: (.+)/,
   postSb: /You post the small blind/,
   postBb: /You post the big blind/,
   turn: /Your turn.*to call: \D*([\d,]+).*pot: \D*([\d,]+).*stack: \D*([\d,]+)/,
   win: /You win \D*([\d,]+)/,
-  cashout: /You leave the table and cash out \D*([\d,]+)|You leave the table\./,
-  actionError: /can't check|nothing to call|can't bet|can't raise|at least|at most/i,
-  autoLeft: /missed too many turns/i,
+  cashout: /You (?:leave|left) the table and cash(?:ed)? out \D*([\d,]+)|You (?:leave|left) the table\./,
+  actionError: /can't check|nothing to call|can't bet|can't raise|minimum is|most you can/i,
+  autoLeft: /stood up after missing|missed too many turns/i,
 };
 
 const WALLET = 10000;
