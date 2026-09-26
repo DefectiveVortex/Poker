@@ -74,6 +74,13 @@ function slotName(window, slot) {
   return item.customName ? flat(item.customName) : (item.displayName || item.name);
 }
 
+/** A window can open before its items arrive (seen on a cold server); wait until `slot` is filled. */
+async function filled(window, slot, timeout = 2000) {
+  const end = Date.now() + timeout;
+  while (Date.now() < end && !slotName(window, slot)) await sleep(100);
+  return window;
+}
+
 function conserved(label, bots) {
   const total = bots.reduce((sum, b) => sum + balance(b.name), 0);
   check(`${label}: chips conserved (wallets back to ${bots.length} x ${WALLET})`, total === bots.length * WALLET,
@@ -120,7 +127,7 @@ module.exports = {
     reset(bots);
     const m = b.mark();
     b.cmd('/poker join');
-    const w = await b.waitWindow();
+    const w = await filled(await b.waitWindow(), 11);
     check('buy-in menu opened', !!w);
     check('slot 11 is the 100 minimum', /100/.test(slotName(w, 11) || ''), slotName(w, 11));
     check('slot 14 is the 2000 maximum', /2,?000/.test(slotName(w, 14) || ''), slotName(w, 14));
@@ -144,11 +151,11 @@ module.exports = {
 
     const mx = x.mark();
     x.cmd('/poker menu');
-    const menu = await x.waitWindow();
+    const menu = await filled(await x.waitWindow(), 10);
     check('action menu has fold in slot 10', /fold/i.test(slotName(menu, 10) || ''), slotName(menu, 10));
     check('action menu has call in slot 12', /call/i.test(slotName(menu, 12) || ''), slotName(menu, 12));
     await x.bot.clickWindow(14, 0, 0); // Raise...
-    const raise = await nextWindow(x, menu);
+    const raise = await filled(await nextWindow(x, menu), 4); // info item is always there
     // Options are centred in the middle row; here 1/2 pot equals the min raise, so there are three.
     const minSlot = [9, 10, 11, 12, 13, 14, 15, 16, 17].find((i) => /min raise/i.test(slotName(raise, i) || ''));
     check('raise menu offers min raise to 20', minSlot !== undefined && /20/.test(slotName(raise, minSlot)),
@@ -162,7 +169,7 @@ module.exports = {
     const my = y.mark();
     await y.waitFor(RX.turn, marks.get(y), 10000);
     y.cmd('/poker menu');
-    await y.waitWindow();
+    await filled(await y.waitWindow(), 10);
     await y.bot.clickWindow(10, 0, 0); // Fold
     check('fold from the menu', !!(await y.waitFor(RX.fold, my, 8000)));
     check('raiser wins the pot', !!(await x.waitFor(RX.win, mx, 10000)));
