@@ -13,7 +13,9 @@ const ctx = {
 };
 
 async function leaveAll(bots) {
-  for (const b of bots) b.cmd('/poker leave');
+  for (const b of bots) {
+    try { b.cmd('/poker leave'); } catch (e) { /* bot already disconnected (e.g. beforeRestart stopped the server) */ }
+  }
   await sleep(1500);
 }
 

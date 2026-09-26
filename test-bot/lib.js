@@ -6,7 +6,7 @@ const path = require('path');
 const HOST = process.env.MC_HOST || '127.0.0.1';
 const PORT = Number(process.env.MC_PORT || 25571);
 const VERSION = process.env.MC_VERSION || '26.1';
-const RCON = path.join(__dirname, '..', 'rcon.py');
+const RCON = process.env.RCON_PY || '/home/vortex/Poker-ops/test-server/rcon.py';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
