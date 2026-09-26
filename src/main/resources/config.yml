@@ -1,0 +1,86 @@
+# Language for player-facing messages: en, ko (Korean), tr (Turkish), ru (Russian).
+# English is read from messages.yml, other languages from messages_<code>.yml, which is
+# created the first time you pick it. To add your own language, drop a messages_<code>.yml
+# into this folder and set its code here. Apply with /poker reload.
+language: en
+
+# Defaults for new tables. Each table keeps its own copy: change one with /poker settable,
+# or pass these when creating it, e.g. /poker createtable seats:8 big-blind:50
+table:
+  max-seats: 6            # 2-8 seats
+  small-blind: 10
+  big-blind: 20
+  # Buy-in range in big blinds: with a 20 big blind, 40-100 BB means 800-2000
+  min-buy-in-bb: 40
+  max-buy-in-bb: 100
+  max-join-distance: 10.0
+  # Sit players on the chairs; they stand up (and leave) by sneaking. When false they're only
+  # teleported next to the chair (and GSit's /sit is used if it's installed).
+  seat-players: true
+  # Right-click a chair to sit down; right-click the table while seated for the action menu
+  click-to-join: true
+  material: GREEN_TERRACOTTA
+  chair-material: DARK_OAK_STAIRS
+
+game:
+  turn-timeout-seconds: 30     # Then the player checks if they can, otherwise folds (0 = no limit)
+  max-missed-turns: 2          # Timed-out hands in a row before a player is stood up and cashed out (0 = never)
+  next-hand-delay-seconds: 5   # Pause between hands
+  showdown-display-seconds: 4  # How long revealed cards stay up after a showdown
+
+# How players act: gui (chest menus) or chat (clickable buttons only)
+interface:
+  menu: gui
+  # Also send clickable [Fold] [Check] [Call] [Raise] buttons in chat on each turn
+  chat-buttons: true
+
+display:
+  card:
+    # 3D cards on the table. Players need the Playing Cards resource pack (1.2+ on servers older than 1.21.2)
+    enabled: true
+    scale: 0.35
+    spacing: 0.3
+    height: 1.03
+  text:
+    # Floating text for the pot, stacks and whose turn it is
+    enabled: true
+
+# Card Resource Pack
+# The 3D cards only render with the Playing Cards pack. When a player sits down at a table
+# they're offered it once per session. It's added on top of your server resource pack
+# rather than replacing it. Set send-on-join to false if you already ship the textures.
+resource-pack:
+  send-on-join: true
+  url: "https://cdn.modrinth.com/data/avUalEYy/versions/ja1dIOhP/Playing-Cards-1.2.zip"
+  sha1: "897ca10946641e1fbebe98fcf6e242a070008acb"
+  # true kicks players who decline the pack
+  required: false
+
+sounds:
+  enabled: true
+  card-deal:
+    sound: BLOCK_WOODEN_BUTTON_CLICK_ON
+    volume: 1.0
+    pitch: 1.2
+  your-turn:
+    sound: BLOCK_NOTE_BLOCK_PLING
+    volume: 1.0
+    pitch: 1.5
+  win:
+    sound: ENTITY_PLAYER_LEVELUP
+    volume: 1.0
+    pitch: 1.0
+  fold:
+    sound: ITEM_BOOK_PAGE_TURN
+    volume: 1.0
+    pitch: 1.0
+
+particles:
+  enabled: true
+  win:
+    type: HAPPY_VILLAGER
+    count: 20
+
+performance:
+  # Seconds between background saves of player statistics (stats.yml)
+  stats-save-interval: 60
