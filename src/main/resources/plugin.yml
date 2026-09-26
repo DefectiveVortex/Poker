@@ -1,0 +1,29 @@
+name: Poker
+version: ${project.version}
+main: com.vortex.poker.PokerPlugin
+description: No-limit Texas Hold'em cash tables for Minecraft
+author: DefectiveVortex
+api-version: "1.20"
+depend: [Vault]
+softdepend: [GSit, PlaceholderAPI]
+load: POSTWORLD
+
+commands:
+  poker:
+    description: Main command for the Poker plugin
+    usage: /<command> help
+    aliases: [pk]
+
+permissions:
+  poker.admin:
+    description: Create, remove and configure poker tables; break table blocks; reload
+    default: op
+    children:
+      poker.play: true
+      poker.stats.others: true
+  poker.play:
+    description: Sit at poker tables and play
+    default: true
+  poker.stats.others:
+    description: View other players' poker statistics
+    default: op
