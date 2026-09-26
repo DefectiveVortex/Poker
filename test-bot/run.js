@@ -2,7 +2,7 @@
 // Env: MC_VERSION (26.1 for the 26.3 server via ViaBackwards, 1.20.1 native), MC_HOST, MC_PORT, RCON_PORT, RCON_PASS,
 //      SERVER_DIR (plugin data is read from $SERVER_DIR/plugins/Poker), VERBOSE=1 to echo bot chat.
 // Scenario files export { name: async (bots, ctx) => {...} }. Owners: game.js = D2, display.js = D1.
-// `setup` (below) builds a fresh 6-seat table centred on 0,-60,0 facing north before anything else runs.
+// `setup` (below) builds a fresh 6-seat table (blinds 5/10, buy-in 100-2000) centred on 0,-60,0 facing north.
 const { TestBot, rcon, check, summary, sleep } = require('./lib');
 
 const BOT_NAMES = ['BotA', 'BotB', 'BotC'];
@@ -28,7 +28,7 @@ const core = {
     a.cmd('/poker removetable');
     await sleep(800);
     const m = a.mark();
-    a.cmd('/poker createtable seats:6 small-blind:5 big-blind:10');
+    a.cmd('/poker createtable seats:6 small-blind:5 big-blind:10 min-buy-in:10 max-buy-in:200');
     const line = await a.waitFor(/table #(\d+) created|can't go here|Invalid argument/i, m);
     const id = line.match(/#(\d+)/);
     ctx.tableId = id ? Number(id[1]) : null;
