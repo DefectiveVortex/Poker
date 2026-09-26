@@ -42,12 +42,13 @@ async function leave(bot) {
 }
 
 /**
- * Play one hand. `strategy(bot, turn)` sends the bot's action when it gets a turn prompt
+ * Play one hand, reading each bot's chat from `from` (a Map of bot -> mark; default: now). `strategy(bot, turn)` sends the bot's action when it gets a turn prompt
  * (turn = {toCall, pot, stack, n}). Resolves when a bot is told it won and no turn prompt followed
  * for `settleMs`. Returns {winners: [bot], lines: {name: [..]}}.
  */
-async function playHand(bots, strategy, { timeout = 90000, settleMs = 2500 } = {}) {
-  const marks = new Map(bots.map((b) => [b, b.mark()]));
+async function playHand(bots, strategy, { from = null, timeout = 90000, settleMs = 2500 } = {}) {
+  // Pass the marks taken before joining: the first turn prompt arrives with the deal
+  const marks = from ? new Map(from) : new Map(bots.map((b) => [b, b.mark()]));
   const start = new Map(marks);
   const turns = new Map(bots.map((b) => [b, 0]));
   const end = Date.now() + timeout;
@@ -133,7 +134,7 @@ module.exports = {
     const { winners } = await playHand(two, async (x) => {
       firstToAct = firstToAct || x;
       x.cmd('/poker fold');
-    });
+    }, { from: marks });
     check('heads-up: small blind (button) acts first', firstToAct === sb, firstToAct && firstToAct.name);
     check('big blind wins', winners.length === 1 && winners[0] === bb);
     const win = bb.since(marks.get(bb)).find((l) => RX.win.test(l));
@@ -153,7 +154,7 @@ module.exports = {
     await join(a, 500, 1);
     await join(b, 500, 2);
     await waitForDeal(two, marks);
-    const { winners } = await playHand(two, checkOrCall);
+    const { winners } = await playHand(two, checkOrCall, { from: marks });
     check('showdown has a winner', winners.length >= 1);
     await leave(a);
     await leave(b);
@@ -171,7 +172,7 @@ module.exports = {
     await join(b, 300, 3);
     await join(c, 500, 5);
     await waitForDeal(bots, marks);
-    await playHand(bots, (x) => tryAction(x, 'allin', 'call'));
+    await playHand(bots, (x) => tryAction(x, 'allin', 'call'), { from: marks });
     for (const x of bots) await leave(x);
     const [da, db, dc] = assertConserved('threeWayAllIn', bots);
     // Most anyone can lose is what the others could match; most anyone can win is the others' matched chips
