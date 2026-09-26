@@ -180,10 +180,30 @@ public final class TableLayout {
             : new double[] {0, -Math.signum(uv[1])};
     }
 
-    /** Where a seat's cards lie, in table coordinates. */
-    double[] cardSpotUV(int seat) {
+    /** Where a seat's cards lie, in table coordinates (u, v). */
+    public double[] cardSpotUV(int seat) {
         double[] c = chairUV(seat), in = inwardUV(seat);
         return new double[] {c[0] + in[0] * CARD_INSET, c[1] + in[1] * CARD_INSET};
+    }
+
+    /** Unit (du, dv) along the table edge in front of a seat, towards the sitter's left. */
+    public double[] edgeUV(int seat) {
+        double[] in = inwardUV(seat);
+        // the inward direction turned 90 degrees anticlockwise seen from above
+        return new double[] {in[1], -in[0]};
+    }
+
+    /** Yaw the top edge of a flat card points to when a seat reads it upright (away from them). */
+    public float getCardTopYaw(int seat) {
+        return getSeatYaw(seat);
+    }
+
+    /**
+     * Yaw the top edge of the board cards points to. They read upright from the right-hand long
+     * side (seats with v = +2), which is the side most seats of a small table use.
+     */
+    public float getBoardTopYaw() {
+        return yawOf(facing, 0, -1);
     }
 
     /** Yaw a player on this seat faces (towards the table). */
