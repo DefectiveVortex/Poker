@@ -34,11 +34,17 @@ public class PokerPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        economyProvider = new VaultEconomyProvider(this);
-        if (!economyProvider.isAvailable()) {
-            getLogger().severe("Vault was found, but no economy provider was registered. Install a Vault-compatible economy plugin.");
-            getServer().getPluginManager().disablePlugin(this);
-            return;
+        VaultEconomyProvider vault = new VaultEconomyProvider(this);
+        economyProvider = vault;
+        if (!vault.isAvailable()) {
+            // Economy plugins register with Vault in their own onEnable, which may run after ours.
+            // The first tick runs once every plugin is enabled, so decide then.
+            getServer().getScheduler().runTask(this, () -> {
+                if (!vault.reconnect()) {
+                    getLogger().severe("Vault was found, but no economy provider was registered. Install a Vault-compatible economy plugin.");
+                    getServer().getPluginManager().disablePlugin(this);
+                }
+            });
         }
 
         statsManager = new StatsManager(this, configManager);
