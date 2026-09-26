@@ -51,6 +51,8 @@ public class PokerTable implements HoldemListener {
     private static final long RUNOUT_TICKS = 30L;
     private static final long REVEAL_TICKS = 20L;
     private static final long AWARD_TICKS = 30L;
+    /** Hands a player with no chips may sit out before they are stood up. */
+    private static final int MAX_BUSTED_HANDS = 3;
     /** How long a seat stays reserved while its player picks a buy-in. */
     private static final long RESERVE_MILLIS = 60_000L;
     private static final long SNEAK_CONFIRM_MILLIS = 3_000L;
@@ -70,6 +72,7 @@ public class PokerTable implements HoldemListener {
     private final Map<Integer, String> lastAction = new HashMap<>();
     private final Map<UUID, Integer> missedTurns = new HashMap<>();
     private final Map<UUID, Long> pendingLeaves = new HashMap<>();
+    private final Map<UUID, Integer> bustedHands = new HashMap<>();
     private final Set<BukkitTask> scheduled = new HashSet<>();
 
     private BukkitTask turnTimer;
@@ -261,9 +264,10 @@ public class PokerTable implements HoldemListener {
             return;
         }
 
-        boolean wasTheirTurn = game.getActor() == seat;
+        // Cancel before folding them: the fold can start the next player's timer
+        if (game.getActor() == seat) cancelTurnTimer();
+        bustedHands.remove(uuid);
         long cashOut = enter(() -> game.removePlayer(seat));
-        if (wasTheirTurn) cancelTurnTimer();
         if (cashOut > 0) {
             payOut(uuid, cashOut, player, "left-cashout");
         } else if (player != null) {
@@ -417,12 +421,21 @@ public class PokerTable implements HoldemListener {
         }
     }
 
-    /** Anyone who went offline without the quit listener catching it is cashed out before the deal. */
+    /**
+     * Before a deal: cash out anyone who went offline without the quit listener catching it, and stand
+     * up players who have sat out {@link #MAX_BUSTED_HANDS} hands with no chips.
+     */
     private void dropOfflinePlayers() {
         for (int s = 0; s < game.getMaxSeats(); s++) {
             UUID uuid = game.getPlayer(s);
-            if (uuid != null && Bukkit.getPlayer(uuid) == null) {
+            if (uuid == null) continue;
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) {
                 leave(uuid, null, "player-left");
+            } else if (game.getStack(s) > 0) {
+                bustedHands.remove(uuid);
+            } else if (bustedHands.merge(uuid, 1, Integer::sum) > MAX_BUSTED_HANDS) {
+                leave(uuid, p, "player-left-busted");
             }
         }
     }
@@ -706,6 +719,7 @@ public class PokerTable implements HoldemListener {
         reservedUntil.clear();
         pendingLeaves.clear();
         missedTurns.clear();
+        bustedHands.clear();
         lastAction.clear();
     }
 
@@ -883,6 +897,9 @@ public class PokerTable implements HoldemListener {
 
     /** Seated players plus seats being bought into. */
     public boolean hasPlayers() {
+        long now = System.currentTimeMillis();
+        reservedSeats.keySet().removeIf(seat -> reservedUntil.getOrDefault(seat, 0L) < now);
+        reservedUntil.keySet().retainAll(reservedSeats.keySet());
         if (!reservedSeats.isEmpty()) return true;
         for (int s = 0; s < game.getMaxSeats(); s++) {
             if (game.getPlayer(s) != null) return true;
