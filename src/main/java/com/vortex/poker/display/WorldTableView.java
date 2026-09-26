@@ -6,7 +6,6 @@ import com.vortex.poker.model.Card;
 import com.vortex.poker.table.CardDisplayCleaner;
 import com.vortex.poker.table.CardModels;
 import com.vortex.poker.table.TableLayout;
-import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -44,6 +43,11 @@ public class WorldTableView implements TableView {
     private static final double TURN_MARKER_HEIGHT = 2.9;
     private static final double POT_INFO_HEIGHT = 1.55;
     private static final double BUTTON_HEIGHT = 1.12;
+    /** Per-kind tags, next to CardDisplayCleaner.DISPLAY_TAG, so tests can count by kind. */
+    public static final String CARD_TAG = "poker-card";
+    public static final String BACK_TAG = "poker-card-back";
+    public static final String TEXT_TAG = "poker-text";
+    public static final String BUTTON_TAG = "poker-button";
     private static final String DEAL_SOUND = "minecraft:block.wooden_button.click_on";
 
     private final PokerPlugin plugin;
@@ -174,6 +178,7 @@ public class WorldTableView implements TableView {
         Location loc = layout.at(spot[0] + side[0] * offset, spot[1] + side[1] * offset, BUTTON_HEIGHT);
         button = spawnText(loc, config().getMessage("display-button"), 0.45f);
         if (button != null) {
+            button.addScoreboardTag(BUTTON_TAG);
             button.setBackgroundColor(Color.fromARGB(230, 255, 255, 255));
         }
     }
@@ -308,7 +313,7 @@ public class WorldTableView implements TableView {
             new AxisAngle4f((float) (Math.PI / 2), 1f, 0f, 0f),
             new Vector3f(scale, scale, scale),
             new AxisAngle4f((float) Math.toRadians(topYaw), 0f, 0f, 1f)));
-        tag(display);
+        tag(display, card == null ? BACK_TAG : CARD_TAG);
         return display;
     }
 
@@ -326,13 +331,14 @@ public class WorldTableView implements TableView {
         display.setBackgroundColor(Color.fromARGB(110, 0, 0, 0));
         display.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(),
             new Vector3f(scale, scale, scale), new AxisAngle4f()));
-        tag(display);
+        tag(display, TEXT_TAG);
         return display;
     }
 
-    private void tag(Entity entity) {
+    private void tag(Entity entity, String kind) {
         entity.setPersistent(false);
         entity.addScoreboardTag(CardDisplayCleaner.DISPLAY_TAG);
+        entity.addScoreboardTag(kind);
         entity.addScoreboardTag(tableTag);
         owned.add(entity.getUniqueId());
     }
@@ -368,7 +374,7 @@ public class WorldTableView implements TableView {
     /** Catch anything tagged for this table that the maps lost track of (e.g. after a reload). */
     private void purgeTagged() {
         World world = layout.getWorld();
-        if (world == null || Bukkit.isStopping() && !world.isChunkLoaded(layout.getX() >> 4, layout.getZ() >> 4)) {
+        if (world == null || !world.isChunkLoaded(layout.getX() >> 4, layout.getZ() >> 4)) {
             return;
         }
         for (Entity e : world.getNearbyEntities(layout.getCenter(), 6, 4, 6,
