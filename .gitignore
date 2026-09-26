@@ -2,3 +2,4 @@ target/
 .claude/
 dependency-reduced-pom.xml
 *.bak-*
+test-bot/node_modules
