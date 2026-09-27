@@ -8,7 +8,7 @@ const { TestBot, sleep } = require('./lib');
 
 const [name = 'BotB', seat = '4', buyIn = '1000'] = process.argv.slice(2);
 const TURN = /Your turn.*to call: \D*([\d,]+)/;
-const READY = /Play again|\/poker ready/i; // round-2 ready check: confirm after every hand
+const READY = /Hand over\..*poker ready/; // round-2 ready check: confirm after every hand
 const SAY = /^<(\w+)> bot (fold|check|call|allin|passive|aggro|leave|join|stay|quit|(?:raise|bet) \d+)\s*$/i;
 
 (async () => {
