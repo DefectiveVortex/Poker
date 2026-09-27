@@ -6,6 +6,7 @@ import com.vortex.poker.economy.EconomyProvider;
 import com.vortex.poker.economy.VaultEconomyProvider;
 import com.vortex.poker.gui.ActionMenu;
 import com.vortex.poker.gui.BuyInMenu;
+import com.vortex.poker.gui.PlayerUI;
 import com.vortex.poker.integration.CardResourcePack;
 import com.vortex.poker.stats.StatsManager;
 import com.vortex.poker.table.CardDisplayCleaner;
@@ -23,6 +24,7 @@ public class PokerPlugin extends JavaPlugin {
     private TableManager tableManager;
     private BuyInMenu buyInMenu;
     private ActionMenu actionMenu;
+    private PlayerUI playerUI;
     private PokerPlaceholderExpansion placeholderExpansion;
 
     @Override
@@ -48,6 +50,8 @@ public class PokerPlugin extends JavaPlugin {
         }
 
         statsManager = new StatsManager(this, configManager);
+        playerUI = new PlayerUI(this);
+        getServer().getPluginManager().registerEvents(playerUI, this);
         cardResourcePack = new CardResourcePack(this);
         tableManager = new TableManager(this);
         tableManager.loadTables();
@@ -109,5 +113,9 @@ public class PokerPlugin extends JavaPlugin {
 
     public ActionMenu getActionMenu() {
         return actionMenu;
+    }
+
+    public PlayerUI getPlayerUI() {
+        return playerUI;
     }
 }

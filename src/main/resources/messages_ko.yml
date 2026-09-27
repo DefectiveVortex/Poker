@@ -100,7 +100,7 @@ ready-waiting: "&7%ready%/%total% 준비됨..."
 ready-reminder: "&e&a[다시 하기]&e까지 %seconds%초 남았습니다."
 ready-timeout-removed: "&c시간 안에 확인하지 않아 &e%amount%&c을(를) 정산하고 나왔습니다."
 ready-countdown: "&e다음 핸드: &a[다시 하기] &e- &c%seconds%초"
-player-ready: "&e%player%&7님 참여."
+player-ready: ""  # muted: ready-waiting already tells confirmed players the count
 player-left-ready-timeout: "&e%player%&7님이 확인하지 않아 테이블을 떠났습니다."
 
 not-your-turn: "&c당신의 차례가 아닙니다."

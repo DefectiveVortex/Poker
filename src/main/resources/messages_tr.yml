@@ -100,7 +100,7 @@ ready-waiting: "&7%ready%/%total% hazır..."
 ready-reminder: "&a[Tekrar oyna] &eiçin %seconds% sn kaldı."
 ready-timeout-removed: "&cZamanında onaylamadın; &e%amount% &cödenerek masadan kaldırıldın."
 ready-countdown: "&eSonraki el: &a[Tekrar oyna] &e- &c%seconds% sn"
-player-ready: "&e%player% &7hazır."
+player-ready: ""  # muted: ready-waiting already tells confirmed players the count
 player-left-ready-timeout: "&e%player% &7onaylamadı ve masadan ayrıldı."
 
 not-your-turn: "&cSıra sizde değil."
