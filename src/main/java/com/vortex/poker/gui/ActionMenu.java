@@ -156,6 +156,15 @@ public class ActionMenu extends PokerMenu {
         ChatUtils.sendRow(player, cfg.getMessage("action-prompt"), cfg.getMessage("action-separator"), buttons);
     }
 
+    /** After a hand: [Play again] (runs /poker ready) and [Leave]. PokerTable sends ready-prompt just before. */
+    public void sendReadyButton(Player player, PokerTable table) {
+        if (!cfg().sendChatButtons()) {
+            return;
+        }
+        ChatUtils.sendRow(player, "", cfg().getMessage("action-separator"),
+            List.of(button("play-again", "/poker ready"), button("leave", "/poker leave")));
+    }
+
     private TextComponent button(String name, String command) {
         return ChatUtils.runButton(cfg().getButtonText(name), command, cfg().getButtonHover(name));
     }

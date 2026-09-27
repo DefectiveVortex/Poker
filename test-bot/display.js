@@ -1,13 +1,13 @@
 // Display checks (D1, from D3's spec in Poker-ops/test-server/bot/D3-display-notes.md).
-// Table from run.js setup: 6 seats centred on 0,-60,0 facing north. Seat 1 (1-based) = slot at (2,-60,-2),
-// seat 4 = (-2,-60,2). Hole cards sit at y -58.97: seat 1's at x 1.65, seat 4's at x -0.65, the board at x 0.5.
-const { rcon, sleep, check } = require('./lib');
+// Table from run.js setup: 6 seats centred on 0,-60,0 facing north. Cards are located through D3's tags, not geometry.
+const { TestBot, rcon, setBalance, sleep, check } = require('./lib');
 
 const count = (sel) => {
   const out = rcon(`execute if entity ${sel}`);
-  if (/failed/i.test(out)) return 0;
-  const m = out.match(/(\d+)/);
-  return m ? Number(m[1]) : 0;
+  if (/Test failed/i.test(out)) return 0;
+  const m = out.match(/Count:\s*(\d+)/i);
+  if (!m) throw new Error(`bad selector ${sel}: ${out}`); // never read a number out of an error message
+  return Number(m[1]);
 };
 
 async function until(fn, timeout = 15000) {
@@ -19,20 +19,36 @@ async function until(fn, timeout = 15000) {
   return false;
 }
 
-// Card-shaped item_displays this client has been sent, classified by model and position.
+// Where the server says a tagged card is (first match), or null.
+function tagPos(tag) {
+  const out = rcon(`data get entity @e[type=item_display,tag=${tag},limit=1] Pos`);
+  const m = out.match(/\[(-?[\d.]+)d?,\s*(-?[\d.]+)d?,\s*(-?[\d.]+)d?\]/);
+  return m ? { x: Number(m[1]), y: Number(m[2]), z: Number(m[3]) } : null;
+}
+
+// Card-shaped item_displays this client has been sent, classified by model, and by position against the
+// server-side positions of D3's tags (poker-seat-card-<0-based seat>, poker-board), so layout changes don't matter.
+// Seat 1 / seat 4 in commands are 0-based seats 0 / 3.
 function seenCards(bot) {
+  const anchors = { seat1: tagPos('poker-seat-card-0'), seat4: tagPos('poker-seat-card-3'), board: tagPos('poker-board') };
   const out = { seat1: { face: 0, back: 0 }, seat4: { face: 0, back: 0 }, board: { face: 0, back: 0 } };
   for (const e of Object.values(bot.bot.entities)) {
     if (e.name !== 'item_display') continue;
-    const p = e.position;
-    if (Math.abs(p.y + 58.97) > 0.2 || Math.abs(p.x) > 3 || Math.abs(p.z) > 3) continue;
     const meta = JSON.stringify(e.metadata);
     let kind = null;
     if (/card\/back|\b21000\b/.test(meta)) kind = 'back';
     else if (/card\/[shdc](?:10|[1-9jqk])|\b210(?:0[1-9]|[1-4]\d|5[0-2])\b/.test(meta)) kind = 'face';
     if (!kind) continue;
-    const where = p.x > 1.2 ? 'seat1' : p.x < 0 ? 'seat4' : 'board';
-    out[where][kind]++;
+    const p = e.position;
+    let where = null;
+    let best = Infinity;
+    for (const [k, a] of Object.entries(anchors)) {
+      if (!a) continue;
+      const d = Math.hypot(p.x - a.x, p.y - a.y, p.z - a.z);
+      // hole cards sit within a card-width of their anchor; the board row spans ~1.5 blocks from its first card
+      if (d < (k === 'board' ? 1.8 : 0.45) && d < best) { best = d; where = k; }
+    }
+    if (where) out[where][kind]++;
   }
   return out;
 }
@@ -75,6 +91,70 @@ module.exports = {
     check('both see the same board', sa.board.face === sb.board.face && sa.board.back === 0, `${sa.board.face} vs ${sb.board.face}`);
     const serverFaces = count('@e[type=item_display,tag=poker-card]');
     check('server has 4 hole faces + board', serverFaces === 4 + sa.board.face, `server ${serverFaces}, board ${sa.board.face}`);
+  },
+
+  // Round 2 (#1 compact layout): from every chair of a full 6-seat table, the rider can read its own hole cards and
+  // the whole board. Limits from D3: own hole cards <= 0.9 from the eye, a board card <= 2.2, every board card <= 2.9.
+  async chairView(bots) {
+    const extra = ['BotD', 'BotE', 'BotF'].map((n) => new TestBot(n));
+    for (const b of extra) {
+      rcon(`whitelist add ${b.name}`);
+      await b.connect();
+      rcon(`tp ${b.name} 3 -60 3`);
+    }
+    const six = [...bots, ...extra];
+    try {
+      for (let i = 0; i < 6; i++) {
+        setBalance(six[i].name, 10000);
+        six[i].cmd(`/poker join 500 ${i + 1}`);
+        await sleep(600);
+      }
+      // A hand starts as soon as two sit, so the rest join the next one: keep checking/calling and confirming
+      // play-again until a hand has all six dealt in, then stop acting once its river is out and measure.
+      const seen = new Map(six.map((b) => [b, Math.max(0, b.log.length - 30)]));
+      const end = Date.now() + 180000;
+      let full = false;
+      while (Date.now() < end) {
+        if (count('@e[tag=poker-card-back]') >= 12) full = true;
+        if (full && count('@e[tag=poker-board]') === 5) break;
+        for (const b of six) {
+          for (let i = seen.get(b); i < b.log.length; i++) {
+            seen.set(b, i + 1);
+            if (/Hand over\..*poker ready/.test(b.log[i])) b.cmd('/poker ready');
+            const t = b.log[i].match(/Your turn.*to call: \D*([\d,]+)/);
+            if (t) b.cmd(Number(t[1].replace(/,/g, '')) === 0 ? '/poker check' : '/poker call');
+          }
+        }
+        await sleep(200);
+      }
+      check('a hand with all 6 seats dealt in', full, `backs=${count('@e[tag=poker-card-back]')}`);
+      check('river dealt with 6 players', count('@e[tag=poker-board]') === 5);
+      for (let s = 0; s < 6; s++) {
+        const who = six[s].name;
+        const y = Number((rcon(`data get entity ${who} Pos[1]`).match(/(-?[\d.]+)d?\s*$/) || [])[1]);
+        const eye = `execute as ${who} at @s positioned ~ ~1.62 ~ if entity`;
+        const n = (sel) => {
+          const o = rcon(`${eye} ${sel}`);
+          if (/Test failed/i.test(o)) return 0;
+          const m = o.match(/Count:\s*(\d+)/i);
+          if (!m) throw new Error(`bad selector ${sel}: ${o}`);
+          return Number(m[1]);
+        };
+        const own = n(`@e[tag=poker-seat-card-${s},distance=..0.9]`);
+        const near = n('@e[tag=poker-board,distance=..2.2]');
+        const all = n('@e[tag=poker-board,distance=..2.9]');
+        check(`seat ${s + 1}: eye ${(y + 1.62).toFixed(2)} (chair block -60 + 1.52 = -58.48 expected)`, Math.abs(y + 1.62 + 58.48) < 0.2, `feet y ${y}`);
+        check(`seat ${s + 1}: own hole cards within 0.9 of the eye`, own >= 2, `${own} card entities`);
+        check(`seat ${s + 1}: a board card within 2.2`, near >= 1, `${near}`);
+        check(`seat ${s + 1}: all 5 board cards within 2.9`, all === 5, `${all}`);
+      }
+    } finally {
+      for (const b of extra) {
+        try { b.cmd('/poker leave'); } catch (e) { /* gone */ }
+      }
+      await sleep(1500);
+      for (const b of extra) await b.quit();
+    }
   },
 
   // 3. Removing the table removes every entity it spawned. Runs last: rebuilds the table afterwards.

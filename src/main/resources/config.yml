@@ -27,12 +27,28 @@ game:
   max-missed-turns: 2          # Timed-out hands in a row before a player is stood up and cashed out (0 = never)
   next-hand-delay-seconds: 5   # Pause between hands
   showdown-display-seconds: 4  # How long revealed cards stay up after a showdown
+  # After each hand every seated player confirms "play again" (a chat button or /poker ready) within this many
+  # seconds, or is stood up and cashed out. Sitting down counts as confirming. 0 = deal on automatically.
+  ready-timeout-seconds: 30
 
 # How players act: gui (chest menus) or chat (clickable buttons only)
 interface:
   menu: gui
   # Also send clickable [Fold] [Check] [Call] [Raise] buttons in chat on each turn
   chat-buttons: true
+  # A big "You win $1,200 / with a Flush!" title for the winner
+  win-title: true
+  # A short how-to the first time a player ever sits down
+  first-time-guide: true
+
+# Cards written in chat, the action bar and hover text: colour per suit, then the colour that follows a card
+cards:
+  colors:
+    hearts: "&c"
+    diamonds: "&c"
+    spades: "&8"
+    clubs: "&8"
+  after: "&f"
 
 display:
   card:
@@ -69,6 +85,14 @@ sounds:
   win:
     sound: ENTITY_PLAYER_LEVELUP
     volume: 1.0
+    pitch: 1.0
+  chips:          # bet, call, raise and all-in, heard around the table
+    sound: BLOCK_CHAIN_PLACE
+    volume: 0.8
+    pitch: 1.6
+  win-fanfare:    # played to the winner along with "win"
+    sound: UI_TOAST_CHALLENGE_COMPLETE
+    volume: 0.7
     pitch: 1.0
   fold:
     sound: ITEM_BOOK_PAGE_TURN

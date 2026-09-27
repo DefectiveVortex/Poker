@@ -8,6 +8,7 @@ import com.vortex.poker.table.CardDisplayCleaner;
 import com.vortex.poker.table.PokerTable;
 import com.vortex.poker.table.TableManager;
 import com.vortex.poker.table.TableSettings;
+import com.vortex.poker.util.ChatUtils;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -31,7 +32,7 @@ public class PokerCommand implements TabExecutor {
     private static final String PLAY = "poker.play";
     private static final String STATS_OTHERS = "poker.stats.others";
     private static final List<String> PLAYER_SUBS = List.of("help", "join", "leave", "fold", "check", "call", "bet",
-        "raise", "allin", "topup", "menu", "stats", "tables", "version");
+        "raise", "allin", "ready", "topup", "menu", "stats", "tables", "version");
     private static final List<String> ADMIN_SUBS = List.of("createtable", "removetable", "settable", "cleanup", "reload");
     private static final int MAX_CLEANUP_RADIUS = 64;
 
@@ -96,6 +97,7 @@ public class PokerCommand implements TabExecutor {
                 }
             });
             case "menu" -> atTable(sender, (p, t) -> t.onTableClick(p));
+            case "ready", "again", "play", "playagain" -> atTable(sender, (p, t) -> t.ready(p));
             default -> sender.sendMessage(cfg().getPrefixed("unknown-command"));
         }
         return true;
@@ -150,6 +152,12 @@ public class PokerCommand implements TabExecutor {
 
     private void help(CommandSender sender) {
         sender.sendMessage(cfg().getPrefixed("help-header"));
+        cfg().getMessageList("help-intro").forEach(sender::sendMessage);
+        if (sender instanceof Player p && tables().getTableOf(p) == null && p.hasPermission(PLAY)) {
+            ChatUtils.sendRow(p, "", " ", List.of(ChatUtils.runButton(cfg().getButtonText("sit-down"), "/poker join",
+                cfg().getButtonHover("sit-down"))));
+        }
+        sender.sendMessage(cfg().getMessage("help-commands-header"));
         cfg().getMessageList("help-lines").forEach(sender::sendMessage);
         if (sender.hasPermission(ADMIN)) {
             cfg().getMessageList("help-admin-lines").forEach(sender::sendMessage);
