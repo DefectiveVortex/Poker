@@ -1,6 +1,5 @@
 // Display checks (D1, from D3's spec in Poker-ops/test-server/bot/D3-display-notes.md).
-// Table from run.js setup: 6 seats centred on 0,-60,0 facing north. Seat 1 (1-based) = slot at (2,-60,-2),
-// seat 4 = (-2,-60,2). Hole cards sit at y -58.97: seat 1's at x 1.65, seat 4's at x -0.65, the board at x 0.5.
+// Table from run.js setup: 6 seats centred on 0,-60,0 facing north. Cards are located through D3's tags, not geometry.
 const { rcon, sleep, check } = require('./lib');
 
 const count = (sel) => {
@@ -19,20 +18,36 @@ async function until(fn, timeout = 15000) {
   return false;
 }
 
-// Card-shaped item_displays this client has been sent, classified by model and position.
+// Where the server says a tagged card is (first match), or null.
+function tagPos(tag) {
+  const out = rcon(`data get entity @e[type=item_display,tag=${tag},limit=1] Pos`);
+  const m = out.match(/\[(-?[\d.]+)d?,\s*(-?[\d.]+)d?,\s*(-?[\d.]+)d?\]/);
+  return m ? { x: Number(m[1]), y: Number(m[2]), z: Number(m[3]) } : null;
+}
+
+// Card-shaped item_displays this client has been sent, classified by model, and by position against the
+// server-side positions of D3's tags (poker-seat-card:<0-based seat>, poker-board), so layout changes don't matter.
+// Seat 1 / seat 4 in commands are 0-based seats 0 / 3.
 function seenCards(bot) {
+  const anchors = { seat1: tagPos('poker-seat-card:0'), seat4: tagPos('poker-seat-card:3'), board: tagPos('poker-board') };
   const out = { seat1: { face: 0, back: 0 }, seat4: { face: 0, back: 0 }, board: { face: 0, back: 0 } };
   for (const e of Object.values(bot.bot.entities)) {
     if (e.name !== 'item_display') continue;
-    const p = e.position;
-    if (Math.abs(p.y + 58.97) > 0.2 || Math.abs(p.x) > 3 || Math.abs(p.z) > 3) continue;
     const meta = JSON.stringify(e.metadata);
     let kind = null;
     if (/card\/back|\b21000\b/.test(meta)) kind = 'back';
     else if (/card\/[shdc](?:10|[1-9jqk])|\b210(?:0[1-9]|[1-4]\d|5[0-2])\b/.test(meta)) kind = 'face';
     if (!kind) continue;
-    const where = p.x > 1.2 ? 'seat1' : p.x < 0 ? 'seat4' : 'board';
-    out[where][kind]++;
+    const p = e.position;
+    let where = null;
+    let best = Infinity;
+    for (const [k, a] of Object.entries(anchors)) {
+      if (!a) continue;
+      const d = Math.hypot(p.x - a.x, p.y - a.y, p.z - a.z);
+      // hole cards sit within a card-width of their anchor; the board row spans ~1.5 blocks from its first card
+      if (d < (k === 'board' ? 1.8 : 0.45) && d < best) { best = d; where = k; }
+    }
+    if (where) out[where][kind]++;
   }
   return out;
 }
