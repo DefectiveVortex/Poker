@@ -81,7 +81,6 @@ public class PokerTable implements HoldemListener {
     private final Map<UUID, Integer> missedTurns = new HashMap<>();
     private final Map<UUID, Long> pendingLeaves = new HashMap<>();
     private final Set<UUID> remindedReady = new HashSet<>();
-    private final Set<UUID> dealtLastHand = new HashSet<>();
     private final Set<BukkitTask> scheduled = new HashSet<>();
 
     private BukkitTask turnTimer;
@@ -420,16 +419,9 @@ public class PokerTable implements HoldemListener {
     }
 
     private void beginReadyCheck() {
-        List<UUID> mustConfirm = new ArrayList<>();
-        List<UUID> alreadyIn = new ArrayList<>();
-        for (int s = 0; s < game.getMaxSeats(); s++) {
-            UUID uuid = game.getPlayer(s);
-            if (uuid == null) continue;
-            // Someone who sat down during the hand chose to play a moment ago; only players who were dealt in confirm
-            (dealtLastHand.contains(uuid) ? mustConfirm : alreadyIn).add(uuid);
-        }
+        // Only players dealt into the hand who are still in that seat confirm; anyone who (re)sat since is in
         int timeout = cfg().getReadyTimeoutSeconds();
-        readyCheck.start(mustConfirm, alreadyIn, now(), timeout * 1000L);
+        readyCheck.open(seatedIds(), now(), timeout * 1000L);
         remindedReady.clear();
         for (UUID uuid : readyCheck.getPending()) {
             Player p = Bukkit.getPlayer(uuid);
@@ -609,10 +601,11 @@ public class PokerTable implements HoldemListener {
     public void onHandStarted(int handNumber, int button, int smallBlindSeat, int bigBlindSeat) {
         lastAction.clear();
         pendingLeaves.clear();
-        dealtLastHand.clear();
+        List<UUID> dealt = new ArrayList<>();
         for (int s = 0; s < game.getMaxSeats(); s++) {
-            if (game.isLive(s)) dealtLastHand.add(game.getPlayer(s));
+            if (game.isLive(s)) dealt.add(game.getPlayer(s));
         }
+        readyCheck.handStarted(dealt);
         broadcast(cfg().formatPrefixed("hand-started", "hand", handNumber, "player", nameAt(button)), null);
     }
 
@@ -859,7 +852,6 @@ public class PokerTable implements HoldemListener {
         pendingLeaves.clear();
         missedTurns.clear();
         remindedReady.clear();
-        dealtLastHand.clear();
         lastAction.clear();
         refreshPot();
         if (!closed) readyCheck.start(List.of(), List.of(), now(), 0);
