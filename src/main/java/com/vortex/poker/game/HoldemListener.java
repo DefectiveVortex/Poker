@@ -48,4 +48,22 @@ public interface HoldemListener {
     default void onHandEnded(HandSummary summary) {}
 
     default void onHandVoided(VoidResult result) {}
+
+    /** One listener that forwards every event to each of {@code listeners}, in order. */
+    static HoldemListener all(HoldemListener... listeners) {
+        List<HoldemListener> ls = List.of(listeners);
+        return new HoldemListener() {
+            public void onHandStarted(int n, int b, int sb, int bb) { ls.forEach(l -> l.onHandStarted(n, b, sb, bb)); }
+            public void onBlindPosted(int s, long a, boolean big, boolean allIn) { ls.forEach(l -> l.onBlindPosted(s, a, big, allIn)); }
+            public void onHoleCards(int s, List<Card> c) { ls.forEach(l -> l.onHoleCards(s, c)); }
+            public void onTurn(int s, ActionOptions o) { ls.forEach(l -> l.onTurn(s, o)); }
+            public void onAction(int s, ActionType t, long bet, boolean allIn, boolean left) { ls.forEach(l -> l.onAction(s, t, bet, allIn, left)); }
+            public void onStreet(Street st, List<Card> board) { ls.forEach(l -> l.onStreet(st, board)); }
+            public void onUncalledReturned(int s, UUID p, long a, boolean seated) { ls.forEach(l -> l.onUncalledReturned(s, p, a, seated)); }
+            public void onShowdown(List<ShowdownHand> h) { ls.forEach(l -> l.onShowdown(h)); }
+            public void onPotAwarded(int i, long a, Map<Integer, Long> sh, HandValue v) { ls.forEach(l -> l.onPotAwarded(i, a, sh, v)); }
+            public void onHandEnded(HandSummary s) { ls.forEach(l -> l.onHandEnded(s)); }
+            public void onHandVoided(VoidResult r) { ls.forEach(l -> l.onHandVoided(r)); }
+        };
+    }
 }
