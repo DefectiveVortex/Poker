@@ -100,7 +100,7 @@ ready-waiting: "&7Готовы %ready%/%total%..."
 ready-reminder: "&eОсталось %seconds% с, чтобы нажать &a[Ещё раз]&e."
 ready-timeout-removed: "&cВы не подтвердили вовремя, вам выплачено &e%amount%&c."
 ready-countdown: "&eСледующая раздача: &a[Ещё раз] &e- &c%seconds% с"
-player-ready: "&e%player% &7в игре."
+player-ready: ""  # muted: ready-waiting already tells confirmed players the count
 player-left-ready-timeout: "&e%player% &7не подтвердил и покинул стол."
 
 not-your-turn: "&cСейчас не ваш ход."
