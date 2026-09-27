@@ -84,4 +84,40 @@ class ReadyCheckTest {
         assertFalse(r.allConfirmed());
         assertEquals(ReadyCheck.Result.NOT_WAITING, r.confirm(A));
     }
+
+    @Test
+    void onlyPlayersDealtInAndStillSeatedMustConfirm() {
+        ReadyCheck r = new ReadyCheck();
+        r.handStarted(List.of(A, B));
+        r.join(C); // sat down mid-hand: no check running, so this is a no-op...
+        r.open(List.of(A, B, C), 0, 30_000);
+        assertEquals(Set.of(A, B), r.getPending());
+        assertTrue(r.isConfirmed(C), "...and they are in once the check opens");
+    }
+
+    @Test
+    void leavingAndSittingStraightBackDownCountsAsReady() {
+        // Round-2 bug: both players left mid-hand and sat again before the check opened; the one who was
+        // dealt in was still asked to confirm, and no hand was dealt.
+        ReadyCheck r = new ReadyCheck();
+        r.handStarted(List.of(A, B));
+        r.remove(A);
+        r.remove(B);
+        r.join(A); // sits again during the post-hand pause (check not open yet)
+        r.open(List.of(A), 0, 30_000);
+        assertTrue(r.allConfirmed(), "a fresh sit is a confirm");
+        r.join(B); // sits again after the check opened
+        assertTrue(r.allConfirmed());
+        assertEquals(2, r.confirmedCount());
+    }
+
+    @Test
+    void newHandForgetsWhoPlayedTheOneBefore() {
+        ReadyCheck r = new ReadyCheck();
+        r.handStarted(List.of(A, B));
+        r.handStarted(List.of(B, C));
+        r.open(List.of(A, B, C), 0, 30_000);
+        assertEquals(Set.of(B, C), r.getPending());
+        assertFalse(r.isActive() && r.allConfirmed());
+    }
 }

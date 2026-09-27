@@ -12,7 +12,9 @@ import java.util.UUID;
  * "Play again?" between hands. While active, each seated player is either confirmed or pending with a
  * deadline; pending players who miss it are handed back by {@link #expired(long)} so the table can
  * stand them up. The next hand may start once nobody is pending (the table also needs two funded
- * players). Players who sit down count as confirmed: choosing a seat is choosing to play.
+ * players). Only players dealt into the last hand who are still in that same seat have to confirm:
+ * anyone who sat down since (including someone who left and sat straight back down) chose a seat
+ * a moment ago, and choosing a seat is choosing to play.
  * Plain Java; times are in milliseconds from whatever clock the caller uses.
  */
 public final class ReadyCheck {
@@ -21,7 +23,25 @@ public final class ReadyCheck {
 
     private final Map<UUID, Long> pending = new LinkedHashMap<>();
     private final Set<UUID> confirmed = new LinkedHashSet<>();
+    private final Set<UUID> dealtIn = new LinkedHashSet<>();
     private boolean active;
+
+    /** A hand was dealt to these players: the check closes, and they are who the next one asks. */
+    public void handStarted(Collection<UUID> dealt) {
+        stop();
+        dealtIn.clear();
+        dealtIn.addAll(dealt);
+    }
+
+    /**
+     * Open the check after a hand: of {@code seated}, players dealt into it (and still in the seat they
+     * played from) must confirm within {@code timeoutMillis}; everyone else is already in.
+     */
+    public void open(Collection<UUID> seated, long now, long timeoutMillis) {
+        List<UUID> mustConfirm = seated.stream().filter(dealtIn::contains).toList();
+        List<UUID> alreadyIn = seated.stream().filter(id -> !dealtIn.contains(id)).toList();
+        start(mustConfirm, alreadyIn, now, timeoutMillis);
+    }
 
     /**
      * Open a new check: {@code mustConfirm} have until {@code now + timeoutMillis}; {@code alreadyIn}
@@ -70,10 +90,11 @@ public final class ReadyCheck {
         confirmed.add(id);
     }
 
-    /** Someone left the table. */
+    /** Someone left the table; if they sit down again it's a new seat, not the hand they played. */
     public void remove(UUID id) {
         pending.remove(id);
         confirmed.remove(id);
+        dealtIn.remove(id);
     }
 
     /** Remove and return everyone whose deadline has passed. */
