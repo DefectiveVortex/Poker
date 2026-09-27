@@ -29,9 +29,10 @@ function setBalance(name, amount) {
 
 function countDisplays(selector = '@e[type=item_display]') {
   const out = rcon(`execute if entity ${selector}`);
-  const m = out.match(/Count:\s*(\d+)/i) || out.match(/(\d+)/);
-  if (/failed/i.test(out)) return 0;
-  return m ? Number(m[1]) : 0;
+  if (/Test failed/i.test(out)) return 0;
+  const m = out.match(/Count:\s*(\d+)/i);
+  if (!m) throw new Error(`bad selector ${selector}: ${out}`);
+  return Number(m[1]);
 }
 
 class TestBot {

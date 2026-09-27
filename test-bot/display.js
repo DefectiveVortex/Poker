@@ -4,9 +4,10 @@ const { TestBot, rcon, setBalance, sleep, check } = require('./lib');
 
 const count = (sel) => {
   const out = rcon(`execute if entity ${sel}`);
-  if (/failed/i.test(out)) return 0;
-  const m = out.match(/(\d+)/);
-  return m ? Number(m[1]) : 0;
+  if (/Test failed/i.test(out)) return 0;
+  const m = out.match(/Count:\s*(\d+)/i);
+  if (!m) throw new Error(`bad selector ${sel}: ${out}`); // never read a number out of an error message
+  return Number(m[1]);
 };
 
 async function until(fn, timeout = 15000) {
@@ -26,10 +27,10 @@ function tagPos(tag) {
 }
 
 // Card-shaped item_displays this client has been sent, classified by model, and by position against the
-// server-side positions of D3's tags (poker-seat-card:<0-based seat>, poker-board), so layout changes don't matter.
+// server-side positions of D3's tags (poker-seat-card-<0-based seat>, poker-board), so layout changes don't matter.
 // Seat 1 / seat 4 in commands are 0-based seats 0 / 3.
 function seenCards(bot) {
-  const anchors = { seat1: tagPos('poker-seat-card:0'), seat4: tagPos('poker-seat-card:3'), board: tagPos('poker-board') };
+  const anchors = { seat1: tagPos('poker-seat-card-0'), seat4: tagPos('poker-seat-card-3'), board: tagPos('poker-board') };
   const out = { seat1: { face: 0, back: 0 }, seat4: { face: 0, back: 0 }, board: { face: 0, back: 0 } };
   for (const e of Object.values(bot.bot.entities)) {
     if (e.name !== 'item_display') continue;
@@ -108,28 +109,38 @@ module.exports = {
         six[i].cmd(`/poker join 500 ${i + 1}`);
         await sleep(600);
       }
-      check('all 6 seats dealt in', await until(() => count('@e[tag=poker-card-back]') >= 12, 20000),
-        `backs=${count('@e[tag=poker-card-back]')}`);
-      // Everyone checks or calls until the river is out.
+      // A hand starts as soon as two sit, so the rest join the next one: keep checking/calling and confirming
+      // play-again until a hand has all six dealt in, then stop acting once its river is out and measure.
       const seen = new Map(six.map((b) => [b, Math.max(0, b.log.length - 30)]));
-      const end = Date.now() + 120000;
-      while (Date.now() < end && count('@e[tag=poker-board]') < 5) {
+      const end = Date.now() + 180000;
+      let full = false;
+      while (Date.now() < end) {
+        if (count('@e[tag=poker-card-back]') >= 12) full = true;
+        if (full && count('@e[tag=poker-board]') === 5) break;
         for (const b of six) {
           for (let i = seen.get(b); i < b.log.length; i++) {
             seen.set(b, i + 1);
+            if (/Hand over\..*poker ready/.test(b.log[i])) b.cmd('/poker ready');
             const t = b.log[i].match(/Your turn.*to call: \D*([\d,]+)/);
             if (t) b.cmd(Number(t[1].replace(/,/g, '')) === 0 ? '/poker check' : '/poker call');
           }
         }
         await sleep(200);
       }
+      check('a hand with all 6 seats dealt in', full, `backs=${count('@e[tag=poker-card-back]')}`);
       check('river dealt with 6 players', count('@e[tag=poker-board]') === 5);
       for (let s = 0; s < 6; s++) {
         const who = six[s].name;
         const y = Number((rcon(`data get entity ${who} Pos[1]`).match(/(-?[\d.]+)d?\s*$/) || [])[1]);
         const eye = `execute as ${who} at @s positioned ~ ~1.62 ~ if entity`;
-        const n = (sel) => { const o = rcon(`${eye} ${sel}`); return /failed/i.test(o) ? 0 : Number((o.match(/(\d+)/) || [0, 0])[1]); };
-        const own = n(`@e[tag=poker-seat-card:${s},distance=..0.9]`);
+        const n = (sel) => {
+          const o = rcon(`${eye} ${sel}`);
+          if (/Test failed/i.test(o)) return 0;
+          const m = o.match(/Count:\s*(\d+)/i);
+          if (!m) throw new Error(`bad selector ${sel}: ${o}`);
+          return Number(m[1]);
+        };
+        const own = n(`@e[tag=poker-seat-card-${s},distance=..0.9]`);
         const near = n('@e[tag=poker-board,distance=..2.2]');
         const all = n('@e[tag=poker-board,distance=..2.9]');
         check(`seat ${s + 1}: eye ${(y + 1.62).toFixed(2)} (chair block -60 + 1.52 = -58.48 expected)`, Math.abs(y + 1.62 + 58.48) < 0.2, `feet y ${y}`);
