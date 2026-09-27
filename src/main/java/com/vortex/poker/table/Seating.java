@@ -54,11 +54,11 @@ public class Seating {
         }
         stand(player);
         Location chair = layout.getChairLocation(seat);
-        chair.setPitch(35f); // looking down at the cards
+        chair.setPitch(28f); // the board and the hole cards both in view
         player.teleport(chair);
 
         if (plugin.getConfigManager().shouldSeatPlayers()) {
-            mount(player, chair);
+            mount(player, layout.getSeatLocation(seat));
         } else if (gsitInstalled()) {
             // give the teleport a moment to land before GSit looks for the stair under them
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -70,16 +70,17 @@ public class Seating {
     }
 
     /**
-     * Mount the player on an invisible marker stand whose rider's hips land on the stair's top
-     * surface, half a block above the chair block.
+     * Mount the player on an invisible marker stand whose rider's hips land on the stair's low
+     * step, half a block above the chair block and a little towards the table
+     * (TableLayout.SEAT_INSET), so their eyes end up at TableLayout.SEATED_EYE_HEIGHT.
      */
-    private void mount(Player player, Location chair) {
-        double hipsY = chair.getBlockY() + 0.5;
-        Location standLoc = new Location(chair.getWorld(), chair.getX(),
-            hipsY - ServerCompat.RIDER_HIP_HEIGHT + ServerCompat.STAND_ABOVE_RIDER_FEET, chair.getZ(),
-            chair.getYaw(), 0f);
+    private void mount(Player player, Location seat) {
+        double hipsY = seat.getBlockY() + 0.5;
+        Location standLoc = new Location(seat.getWorld(), seat.getX(),
+            hipsY - ServerCompat.RIDER_HIP_HEIGHT + ServerCompat.STAND_ABOVE_RIDER_FEET, seat.getZ(),
+            seat.getYaw(), 0f);
 
-        ArmorStand stand = chair.getWorld().spawn(standLoc, ArmorStand.class);
+        ArmorStand stand = seat.getWorld().spawn(standLoc, ArmorStand.class);
         stand.setMarker(true);
         stand.setVisible(false);
         stand.setGravity(false);

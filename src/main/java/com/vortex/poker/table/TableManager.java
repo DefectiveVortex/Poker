@@ -40,6 +40,9 @@ public class TableManager {
     /** A block that belongs to a table: a chair (seat 0..n-1) or the felt (seat -1). */
     public record TableBlock(PokerTable table, int seat) {}
 
+    /** Table geometry version written to tables.yml. 1 = 5x3 felt (1.0), 2 = compact 3x3. */
+    static final int LAYOUT_VERSION = 2;
+
     /** Outcome of {@link #updateSettings}. */
     public enum UpdateResult { UPDATED, REBUILT, INVALID, TABLE_BUSY }
 
@@ -82,10 +85,34 @@ public class TableManager {
                 TableSettings settings = readSettings(entry);
                 TableLayout layout = new TableLayout(world, entry.getInt("x"), entry.getInt("y"), entry.getInt("z"),
                     facing, settings.getMaxSeats(config()));
+                if (entry.getInt("layout", 1) < LAYOUT_VERSION) {
+                    rebuildLegacyTable(id, layout, settings);
+                }
                 tables.put(id, new PokerTable(plugin, this, id, layout, settings));
             }
         }
         plugin.getLogger().info("Loaded " + tables.size() + " poker table(s)");
+    }
+
+    /**
+     * Tables built before the compact layout (5x3 felt, chairs a block out) are torn down and
+     * rebuilt as 3x3 on the same centre and facing. Only blocks that are still the configured felt
+     * and chair materials are cleared, so anything an admin built around the table stays.
+     */
+    private void rebuildLegacyTable(int id, TableLayout layout, TableSettings settings) {
+        Material felt = config().getTableMaterial();
+        Material chair = config().getChairMaterial();
+        for (Block block : layout.legacyFeltBlocks()) {
+            if (block.getType() == felt) block.setType(Material.AIR);
+        }
+        for (Block block : layout.legacyChairBlocks(layout.getSeatCount())) {
+            if (block.getType() == chair) block.setType(Material.AIR);
+        }
+        buildFelt(layout);
+        buildChairs(layout);
+        writeEntry(id, layout, settings);
+        saveTablesFile();
+        plugin.getLogger().info("Rebuilt poker table #" + id + " with the compact layout");
     }
 
     // -------------------------------------------------------------------------
@@ -329,6 +356,7 @@ public class TableManager {
         tablesConfig.set(path + ".y", layout.getY());
         tablesConfig.set(path + ".z", layout.getZ());
         tablesConfig.set(path + ".facing", layout.getFacing().name());
+        tablesConfig.set(path + ".layout", LAYOUT_VERSION);
         // only overrides are written; anything unset follows config.yml
         tablesConfig.set(path + ".seats", settings.getRawMaxSeats());
         tablesConfig.set(path + ".small-blind", settings.getRawSmallBlind());
