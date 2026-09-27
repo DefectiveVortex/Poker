@@ -68,7 +68,7 @@ public class WorldTableView implements TableView {
     public static final String CARD_TAG = "poker-card";
     public static final String BACK_TAG = "poker-card-back";
     public static final String BOARD_TAG = "poker-board";
-    public static final String SEAT_CARD_TAG_PREFIX = "poker-seat-card:";
+    public static final String SEAT_CARD_TAG_PREFIX = "poker-seat-card-";
     public static final String TEXT_TAG = "poker-text";
     public static final String BUTTON_TAG = "poker-button";
     public static final String CHIP_TAG = "poker-chip";
@@ -81,6 +81,7 @@ public class WorldTableView implements TableView {
     private final PokerPlugin plugin;
     private final TableLayout layout;
     private final String tableTag;
+    private final String legacyTableTag;
 
     private final Map<Integer, SeatCards> seatCards = new HashMap<>();
     private final List<Card> boardCards = new ArrayList<>();
@@ -109,10 +110,19 @@ public class WorldTableView implements TableView {
         this.plugin = plugin;
         this.layout = layout;
         this.tableTag = tableTag(tableId);
+        this.legacyTableTag = legacyTableTag(tableId);
     }
 
-    /** Scoreboard tag carried by every entity a table spawns. */
+    /**
+     * Scoreboard tag carried by every entity a table spawns. No ':' in tags: commands can't
+     * select a tag containing one (@e[tag=a:b] is a syntax error).
+     */
     public static String tableTag(int tableId) {
+        return "poker-table-" + tableId;
+    }
+
+    /** The tag 1.0 builds used, still recognised when purging a table's leftovers. */
+    static String legacyTableTag(int tableId) {
         return "poker-table:" + tableId;
     }
 
@@ -573,7 +583,7 @@ public class WorldTableView implements TableView {
             return;
         }
         for (Entity e : world.getNearbyEntities(layout.getCenter(), 5, 4, 5,
-                e -> e.getScoreboardTags().contains(tableTag))) {
+                e -> e.getScoreboardTags().contains(tableTag) || e.getScoreboardTags().contains(legacyTableTag))) {
             e.remove();
         }
     }
