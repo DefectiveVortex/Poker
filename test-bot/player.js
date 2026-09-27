@@ -216,6 +216,41 @@ module.exports = {
     conserved('d4ChatRaiseAndTopUp', two);
   },
 
+  // Round 2: the compact turn prompt, then "play again" after the hand. Both confirm (the plain command and an
+  // alias) and a second hand is dealt; sitting down counted as ready, so the first hand needed no confirm.
+  async d4PlayAgain(bots) {
+    const [a, b] = bots;
+    const two = [a, b];
+    reset(bots);
+    const marks = new Map(two.map((x) => [x, x.mark()]));
+    await join(a, 300, 1);
+    await join(b, 300, 2);
+    const x = await whoseTurn(two, marks);
+    const y = x === a ? b : a;
+    const cardsLine = x.since(marks.get(x)).find((l) => /Your cards .*You have: /.test(l));
+    check('turn prompt shows cards and current hand', !!cardsLine, cardsLine);
+    const mx = x.mark();
+    const my = y.mark();
+    x.cmd('/poker fold');
+    await x.waitFor(RX.fold, mx, 8000);
+    await y.waitFor(RX.win, my, 10000);
+    for (const bot of two) {
+      const prompt = await bot.waitFor(/Hand over|Play again|poker ready/i, bot === x ? mx : my, 15000);
+      check(`${bot.name} asked to play again`, !!prompt, prompt);
+    }
+    const mx2 = x.mark();
+    const my2 = y.mark();
+    x.cmd('/poker ready');
+    check('/poker ready confirms', !!(await x.waitFor(/You're in for the next hand/i, mx2, 8000)));
+    y.cmd('/poker again');
+    check('/poker again confirms', !!(await y.waitFor(/You're in for the next hand/i, my2, 8000)));
+    const next = await x.waitFor(/Your (?:hole )?cards: /, mx2, 20000);
+    check('second hand dealt after both confirmed', !!next, next);
+    await leave(a);
+    await leave(b);
+    conserved('d4PlayAgain', two);
+  },
+
   // Stats after the hands above, the others-permission, and PlaceholderAPI (26.3 only).
   async d4StatsAndPapi(bots) {
     const [a, b] = bots;

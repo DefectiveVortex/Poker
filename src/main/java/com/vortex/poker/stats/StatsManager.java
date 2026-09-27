@@ -55,6 +55,7 @@ public class StatsManager {
                 p.showdownsWon = s.getLong("showdowns-won");
                 p.biggestPot = s.getLong("biggest-pot");
                 p.netWinnings = s.getLong("net-winnings");
+                p.guideSeen = s.getBoolean("guide-seen");
                 stats.put(UUID.fromString(key), p);
             } catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Skipping bad stats entry '" + key + "'");
@@ -83,6 +84,21 @@ public class StatsManager {
         p.biggestPot = Math.max(p.biggestPot, potWon);
         p.netWinnings += net;
         dirty = true;
+    }
+
+    /** True the first time it's called for a player (who hasn't played before); records that they've seen the guide. */
+    public boolean markGuideSeen(UUID player) {
+        PlayerStats p = stats.computeIfAbsent(player, id -> new PlayerStats());
+        if (p.guideSeen || p.handsPlayed > 0) {
+            return false;
+        }
+        p.guideSeen = true;
+        OfflinePlayer offline = Bukkit.getOfflinePlayer(player);
+        if (offline.getName() != null) {
+            p.name = offline.getName();
+        }
+        dirty = true;
+        return true;
     }
 
     /** Stats for a player, or null if they've never played. */
@@ -143,6 +159,7 @@ public class StatsManager {
             yaml.set(k + ".showdowns-won", p.showdownsWon);
             yaml.set(k + ".biggest-pot", p.biggestPot);
             yaml.set(k + ".net-winnings", p.netWinnings);
+            if (p.guideSeen) yaml.set(k + ".guide-seen", true);
         }
         try {
             yaml.save(file);
