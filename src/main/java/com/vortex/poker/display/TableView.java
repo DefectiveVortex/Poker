@@ -59,6 +59,17 @@ public interface TableView {
     /** Remove everything this view spawned. The view can't be used afterwards. */
     void destroy();
 
+    /**
+     * Celebrate a hand's winners: every seat that won anything, and the total paid out. Called
+     * once per hand after the reveal (or the last fold), before clearHand().
+     */
+    default void showWinners(List<Integer> seats, long amount) {
+    }
+
+    /** Total in the middle, for the chip stack next to the board. 0 removes it. */
+    default void setPotChips(long amount) {
+    }
+
     /** True if the entity is one of this view's live displays (see CardDisplayCleaner). */
     default boolean ownsEntity(Entity entity) {
         return false;

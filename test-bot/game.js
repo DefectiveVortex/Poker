@@ -19,6 +19,9 @@ const RX = {
   cashout: /You (?:leave|left) the table and cash(?:ed)? out \D*([\d,]+)|You (?:leave|left) the table\./,
   actionError: /can't check|nothing to call|can't bet|can't raise|minimum is|most you can/i,
   autoLeft: /stood up after missing|missed too many turns/i,
+  readyPrompt: /Hand over\..*poker ready/,
+  readyConfirmed: /You're in for the next hand/,
+  readyRemoved: /didn't confirm in time and were cashed out \D*([\d,]+)/,
 };
 
 const WALLET = 10000;
@@ -181,7 +184,8 @@ module.exports = {
     check('500-stack never risks its top 200', dc >= -300 && dc <= 400, `${dc}`);
   },
 
-  // A player who never acts is checked/folded by the timer and stood up after max-missed-turns (2).
+  // A player who never acts is checked/folded by the timer, then stood up: either after max-missed-turns
+  // (2) within a hand, or for not confirming "play again" after it.
   async turnTimeout(bots) {
     const [a, b] = bots;
     const two = [a, b];
@@ -189,21 +193,22 @@ module.exports = {
     const m = a.mark();
     await join(a, 500, 1);
     await join(b, 500, 2);
-    // b plays (checks/calls); a never answers. Two timed-out hands (~30 s each) stand a up.
-    const end = Date.now() + 150000;
+    // b plays (checks/calls) and confirms every "play again"; a never answers anything.
+    const end = Date.now() + 200000;
     let bMark = b.mark();
-    let left = null;
-    while (Date.now() < end && !left) {
+    let gone = null;
+    while (Date.now() < end && !gone) {
       for (let i = bMark; i < b.log.length; i++) {
         bMark = i + 1;
         const t = b.log[i].match(RX.turn);
         if (t) await checkOrCall(b, { toCall: num(t[1]) });
+        else if (RX.readyPrompt.test(b.log[i])) b.cmd('/poker ready');
       }
-      left = a.since(m).find((l) => RX.autoLeft.test(l));
+      gone = a.since(m).find((l) => RX.autoLeft.test(l) || RX.readyRemoved.test(l));
       await sleep(300);
     }
-    check('idle player stood up after missed turns', !!left, a.since(m).slice(-5).join(' | '));
-    check('idle player cashed out', a.since(m).some((l) => RX.cashout.test(l)));
+    check('idle player stood up (missed turns or no play-again)', !!gone, a.since(m).slice(-5).join(' | '));
+    check('idle player cashed out', a.since(m).some((l) => RX.cashout.test(l) || RX.readyRemoved.test(l)));
     await leave(b);
     assertConserved('turnTimeout', two);
   },

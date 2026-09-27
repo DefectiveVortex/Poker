@@ -19,17 +19,23 @@ amount-cancel-word: "cancel"
 amount-cancelled: "&7Cancelled."
 
 # Help (/poker help)
-help-header: "&6Poker commands:"
+help-header: "&6&lPoker &7- Texas Hold'em"
+help-intro:
+  - "&7Sit at a table, buy in with some money and play for the pot."
+  - "&7Each hand you get &f2 cards&7; 5 more are shared on the table. Best 5-card hand wins."
+  - "&7On your turn just click the buttons in chat: &cFold&7, &aCheck&7/&eCall&7, &6Raise&7."
+  - "&7Leave any time with &e/poker leave &7- your chips are paid back."
+help-commands-header: "&6Commands:"
 help-lines:
-  - "&e/poker join &7- Sit at the nearest table"
-  - "&e/poker leave &7- Stand up and cash out"
-  - "&e/poker fold|check|call &7- Act on your turn"
-  - "&e/poker bet <n> &7/ &e/poker raise <n> &7- Bet or raise to a total of n"
-  - "&e/poker allin &7- Move all your chips in"
-  - "&e/poker topup <n> &7- Add chips between hands"
-  - "&e/poker menu &7- Open the action menu"
-  - "&e/poker stats [player] &7- Your poker statistics"
-  - "&e/poker tables &7- List the tables"
+  - "&e/poker join [amount] &7- sit at the nearest table"
+  - "&e/poker leave &7- stand up and cash out"
+  - "&e/poker fold&7, &echeck&7, &ecall&7, &eallin &7- act on your turn"
+  - "&e/poker bet <n> &7/ &eraise <n> &7- bet or raise to a total of n"
+  - "&e/poker ready &7- play the next hand"
+  - "&e/poker topup <n> &7- add chips between hands"
+  - "&e/poker menu &7- the action menu"
+  - "&e/poker stats [player] &7- your poker statistics"
+  - "&e/poker tables &7- list the tables"
 help-admin-lines:
   - "&c/poker createtable [seats:<n>] [small-blind:<n>] [big-blind:<n>] [min-buy-in:<bb>] [max-buy-in:<bb>] [max-join-distance:<n>]"
   - "&c/poker settable <setting> <value> &7- Change the nearest table"
@@ -80,6 +86,38 @@ insufficient-funds: "&cYou need at least &e%amount% &cfor that. Your balance: &e
 topup-prompt: "&7Top up your stack &8(up to &e%max%&8)&7:"
 topup-none-allowed: "&cYour stack is already at the table maximum."
 topup-usage: "&eUsage: /poker topup <amount>"
+
+# First time a player sits down (interface.first-time-guide)
+first-time-guide:
+  - "&6Welcome to poker! &7Quick start:"
+  - "&7You get &f2 cards&7; 5 shared cards come out in 3 rounds. Make the best 5-card hand."
+  - "&7Blinds are &e%small_blind%/%big_blind%&7. On your turn click &cFold&7, &aCheck&7/&eCall &7or &6Raise &7in chat."
+  - "&7Win the pot with the best hand, or by betting until everyone else folds. &e/poker help &7for more."
+
+# Your turn (the cards line comes first; the "Your turn - to call" line must keep its shape for the test bots)
+turn-cards-preflop: "&7Your cards %cards% &8· &7You have: &e%hand%"
+turn-cards: "&7Your cards %cards% &8· &7Board %board% &8· &7You have: &e%hand%"
+# Other languages describe hands with these (English uses its own wording, e.g. "Two Pair, Kings and Sevens")
+hand-detail: "%hand% (%r1%)"
+hand-detail-two: "%hand% (%r1%/%r2%)"
+
+# Winner's title
+win-title: "&6&lYou win %amount%"
+win-subtitle: "&ewith a %hand%!"
+win-subtitle-uncontested: "&7everyone folded"
+
+# Play again (after every hand; game.ready-timeout-seconds)
+ready-prompt: "&6Hand over. &7Click &a[Play again] &7or type &e/poker ready &7within &e%seconds%s &7to stay in."
+ready-confirmed: "&aYou're in for the next hand."
+ready-already: "&7You're already in for the next hand."
+ready-no-phase: "&7Nothing to confirm right now."
+ready-need-chips: "&cYou're out of chips: &e/poker topup <amount> &c(up to %max%) first."
+ready-waiting: "&7%ready%/%total% ready..."
+ready-reminder: "&e%seconds%s left to click &a[Play again]&e."
+ready-timeout-removed: "&cYou didn't confirm in time and were cashed out &e%amount%&c."
+ready-countdown: "&eNext hand: click &a[Play again] &e- &c%seconds%s"
+player-ready: "&e%player% &7is in."
+player-left-ready-timeout: "&e%player% &7didn't confirm and left the table."
 
 # Your turn
 not-your-turn: "&cIt's not your turn."
@@ -148,7 +186,7 @@ left-cashout: "&7You leave the table and cash out &e%amount%&7."
 left-table: "&7You leave the table."
 table-closed-cashout: "&7The table closed. You were cashed out &e%amount%&7."
 hand-voided: "&cThe hand was cancelled. &e%amount% &cwas returned to you."
-busted: "&cYou're out of chips. Use &e/poker topup <amount> &c(up to %max%) or &e/poker leave&c."
+busted: "&cYou're out of chips. &e/poker topup <amount> &c(up to %max%) to keep playing, or &e/poker leave&c."
 seat-leave-confirm-fold: "&eSneak again within 3 seconds to fold and leave the table."
 auto-left-missed-turns: "&cYou missed too many turns and left the table."
 error-payout: "&cWe couldn't pay out &e%amount%&c. Please contact staff."
@@ -165,7 +203,6 @@ turn-timer: "&eYour turn: &c%seconds%s"
 player-joined: "&e%player% &7sat down with &e%amount%&7."
 player-left: "&e%player% &7left the table."
 player-left-inactive: "&e%player% &7was stood up for missing turns."
-player-left-busted: "&e%player% &7ran out of chips and left."
 hand-started: "&6Hand #%hand% &7- &e%player% &7has the button."
 action-fold: "&e%player% &7folds."
 action-check: "&e%player% &7checks."
@@ -243,6 +280,12 @@ buttons:
   menu:
     text: "&b[Menu]"
     hover: "&7Open the action menu"
+  play-again:
+    text: "&a&l[Play again]"
+    hover: "&7Stay in for the next hand"
+  sit-down:
+    text: "&a[Sit down]"
+    hover: "&7Sit at the nearest table"
   leave:
     text: "&7[Leave]"
     hover: "&7Stand up and cash out"

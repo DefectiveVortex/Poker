@@ -10,6 +10,7 @@ public class PlayerStats {
     long showdownsWon;
     long biggestPot;
     long netWinnings;
+    boolean guideSeen;
 
     public String getName() { return name; }
     public long getHandsPlayed() { return handsPlayed; }

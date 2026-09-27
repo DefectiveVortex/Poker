@@ -1,5 +1,10 @@
 package com.vortex.poker.config;
 
+import com.vortex.poker.model.Card;
+import com.vortex.poker.model.HandRank;
+import com.vortex.poker.model.HandValue;
+import com.vortex.poker.model.Rank;
+import com.vortex.poker.model.Suit;
 import com.vortex.poker.util.ServerCompat;
 import org.bukkit.ChatColor;
 import org.bukkit.Keyed;
@@ -17,6 +22,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Centralized configuration: config.yml plus the messages file for the configured language.
@@ -42,6 +48,8 @@ public class ConfigManager {
     private Sound turnSound;
     private Sound winSound;
     private Sound foldSound;
+    private Sound chipsSound;
+    private Sound fanfareSound;
     private Particle winParticle;
 
     public ConfigManager(JavaPlugin plugin) {
@@ -105,6 +113,8 @@ public class ConfigManager {
         turnSound = resolveSound(config.getString("sounds.your-turn.sound"), Sound.BLOCK_NOTE_BLOCK_PLING);
         winSound = resolveSound(config.getString("sounds.win.sound"), Sound.ENTITY_PLAYER_LEVELUP);
         foldSound = resolveSound(config.getString("sounds.fold.sound"), Sound.ITEM_BOOK_PAGE_TURN);
+        chipsSound = resolveSound(config.getString("sounds.chips.sound"), Sound.BLOCK_CHAIN_PLACE);
+        fanfareSound = resolveSound(config.getString("sounds.win-fanfare.sound"), Sound.UI_TOAST_CHALLENGE_COMPLETE);
         winParticle = ServerCompat.particle(config.getString("particles.win.type"), "HAPPY_VILLAGER", "VILLAGER_HAPPY");
     }
 
@@ -146,6 +156,12 @@ public class ConfigManager {
     /** Seconds the showdown (revealed cards, winners) stays on the table before it's cleared. */
     public int getShowdownDisplaySeconds() { return Math.max(1, config.getInt("game.showdown-display-seconds", 4)); }
 
+    /** Seconds each seated player has to confirm "play again" after a hand; 0 turns the ready check off. */
+    public int getReadyTimeoutSeconds() {
+        int seconds = config.getInt("game.ready-timeout-seconds", 30);
+        return seconds <= 0 ? 0 : Math.max(5, seconds);
+    }
+
     /** Players who time out this many hands in a row are stood up and cashed out; 0 = never. */
     public int getMaxMissedTurns() { return Math.max(0, config.getInt("game.max-missed-turns", 2)); }
 
@@ -174,6 +190,13 @@ public class ConfigManager {
     public Sound getTurnSound() { return turnSound; }
     public Sound getWinSound() { return winSound; }
     public Sound getFoldSound() { return foldSound; }
+    public Sound getChipsSound() { return chipsSound; }
+    public Sound getFanfareSound() { return fanfareSound; }
+    public int getWinParticleCount() { return Math.max(0, config.getInt("particles.win.count", 20)); }
+    /** Show the winner a big "You win" title. */
+    public boolean showWinTitle() { return config.getBoolean("interface.win-title", true); }
+    /** Send first-time players a short how-to when they first sit down. */
+    public boolean showFirstTimeGuide() { return config.getBoolean("interface.first-time-guide", true); }
     /** Null when no candidate name exists on this server version. */
     public Particle getWinParticle() { return winParticle; }
     public float getSoundVolume(String sound) { return (float) config.getDouble("sounds." + sound + ".volume", 1.0); }
@@ -265,6 +288,59 @@ public class ConfigManager {
 
     public static String color(String text) {
         return ChatColor.translateAlternateColorCodes('&', text);
+    }
+
+    // ---- Cards and hands as text ----
+
+    /** Colour code for a suit, from config.yml cards.colors (hearts/diamonds red, spades/clubs dark gray by default). */
+    public String getSuitColor(Suit suit) {
+        String key = suit.name().toLowerCase(Locale.ROOT);
+        String fallback = suit == Suit.HEARTS || suit == Suit.DIAMONDS ? "&c" : "&8";
+        return color(config.getString("cards.colors." + key, fallback));
+    }
+
+    /** "A♥" in its suit colour, followed by a reset to white so surrounding text isn't tinted. */
+    public String formatCard(Card card) {
+        return getSuitColor(card.getSuit()) + card.display() + color(config.getString("cards.after", "&f"));
+    }
+
+    /** Cards separated by spaces, each in its suit colour. The plain text is unchanged ("A♥ 10♠"). */
+    public String formatCards(List<Card> cards) {
+        return cards.stream().map(this::formatCard).collect(Collectors.joining(" "));
+    }
+
+    /**
+     * A hand with what decides it: "Two Pair, Kings and Sevens" in English (the model's own wording), and
+     * "%hand% (K/7)"-style templates from messages (hand-detail, hand-detail-two) in other languages.
+     */
+    public String describeHand(HandValue value) {
+        if (getLanguage().equals("en") || getLanguage().isEmpty()) {
+            return value.describe();
+        }
+        String hand = getMessage("hand." + value.getRank().name());
+        List<Rank> ranks = value.getOrderedRanks();
+        if (value.getRank() == HandRank.ROYAL_FLUSH || ranks.isEmpty()) {
+            return hand;
+        }
+        boolean two = (value.getRank() == HandRank.TWO_PAIR || value.getRank() == HandRank.FULL_HOUSE) && ranks.size() > 1;
+        return formatMessage(two ? "hand-detail-two" : "hand-detail", "hand", hand,
+            "r1", ranks.get(0).label(), "r2", two ? ranks.get(1).label() : "");
+    }
+
+    /** Before the flop: "Pair of Kings" / "Ace high" for two hole cards (the evaluator needs five). */
+    public String describeHole(List<Card> hole) {
+        if (hole.size() != 2) {
+            return "";
+        }
+        Rank a = hole.get(0).getRank();
+        Rank b = hole.get(1).getRank();
+        Rank high = a.value() >= b.value() ? a : b;
+        boolean en = getLanguage().equals("en") || getLanguage().isEmpty();
+        if (a == b) {
+            return en ? "Pair of " + a.pluralName() : formatMessage("hand-detail", "hand", getMessage("hand.PAIR"), "r1", a.label());
+        }
+        return en ? high.displayName() + " high"
+            : formatMessage("hand-detail", "hand", getMessage("hand.HIGH_CARD"), "r1", high.label());
     }
 
     // ---- Chat buttons (messages.yml "buttons.<name>.text|hover") ----
