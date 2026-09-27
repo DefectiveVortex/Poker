@@ -3,6 +3,7 @@
 # pick one with `language:` in config.yml. Keys missing from a translation fall back to this text.
 # Color codes: &0-&9, &a-&f for colors, &l (bold), &n (underline), &o (italic), &m (strikethrough), &r (reset)
 # Placeholders are marked with %placeholder_name%
+# Set a message to "" to stop it being sent at all (e.g. to cut chat spam).
 
 # Core messages
 prefix: "&8[&2Poker&8] &r"
@@ -116,7 +117,7 @@ ready-waiting: "&7%ready%/%total% ready..."
 ready-reminder: "&e%seconds%s left to click &a[Play again]&e."
 ready-timeout-removed: "&cYou didn't confirm in time and were cashed out &e%amount%&c."
 ready-countdown: "&eNext hand: click &a[Play again] &e- &c%seconds%s"
-player-ready: "&e%player% &7is in."
+player-ready: ""  # muted: ready-waiting already tells confirmed players the count
 player-left-ready-timeout: "&e%player% &7didn't confirm and left the table."
 
 # Your turn
@@ -203,7 +204,7 @@ turn-timer: "&eYour turn: &c%seconds%s"
 player-joined: "&e%player% &7sat down with &e%amount%&7."
 player-left: "&e%player% &7left the table."
 player-left-inactive: "&e%player% &7was stood up for missing turns."
-hand-started: "&6Hand #%hand% &7- &e%player% &7has the button."
+hand-started: "&8» &7Hand #%hand% &8· &7button: &e%player%"
 action-fold: "&e%player% &7folds."
 action-check: "&e%player% &7checks."
 action-call: "&e%player% &7calls &e%amount%&7."
