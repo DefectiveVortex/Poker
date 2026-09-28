@@ -498,7 +498,8 @@ function drawPlayer(R, e) { // a seated figure (Steve colours) and its name tag
     box(R, add(add(hip, mul(fwd, 0.3)), mul(side, 0.125 * s)), [0.25, 0.25, 0.75], yaw, [60, 60, 160]); // thighs forward
     box(R, add(add(eye, [0, -0.25 - 0.375, 0]), mul(side, 0.375 * s)), [0.25, 0.75, 0.25], yaw, [150, 105, 80]); // arms
   }
-  if (e.name) drawText(R, { pos: add(eye, [0, 0.5 + 0.25, 0]), billboard: 3, text: e.name, background: 0x40000000, scale: [1, 1, 1] });
+  // vanilla name tag: top at bbHeight + 0.5 = eye + 0.68, one 10 px line (0.25) drawn downward
+  if (e.name) drawText(R, { pos: add(eye, [0, 0.68 - 0.25, 0]), billboard: 3, text: e.name, background: 0x40000000, scale: [1, 1, 1] });
 }
 
 function render(scene, outFile) {

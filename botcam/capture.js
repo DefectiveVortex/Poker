@@ -1,4 +1,4 @@
-// botcam capture: seat three bots, play one hand, and at chosen moments dump each bot's OWN view of
+// botcam capture: seat a bot in every seat, play one hand, and at chosen moments dump each bot's OWN view of
 // the table (the display entities the server sent that bot, so per-viewer hiding is real) plus the
 // blocks around it, then render every view from that bot's seated eye with render.js.
 //
@@ -117,7 +117,15 @@ function eyeOf(name) {
 }
 
 const horiz = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
-const isBoard = (d) => d.type === 'item_display' && d.model && horiz(d.pos, TABLE) < 0.95;
+// Board cards are the face-up models every seated bot has been sent while hole cards are still private.
+// (Since round 4 each side of the table gets its own board copy, so position can't tell them apart.)
+const boardModels = new Set();
+const faceModels = (bot) => new Set(displays(bot).filter((d) => d.type === 'item_display' && d.model && d.model !== 'back').map((d) => d.model));
+function commonFaces(bots) {
+  const sets = bots.map((b) => faceModels(b.bot));
+  return [...sets[0]].filter((m) => sets.every((x) => x.has(m)));
+}
+const isBoard = (d) => d.type === 'item_display' && d.model && boardModels.has(d.model);
 const plain = (d) => runs(d.text).map((c) => c.ch).join('').trim();
 /** The dealer button as this bot was sent it: a one-letter text display ("D"). */
 const buttonOf = (ents) => ents.find((d) => d.type === 'text_display' && /^[A-Z]$/.test(plain(d)));
@@ -140,8 +148,9 @@ async function shoot(bots, moment, aim) {
     // or, pre-flop, between their own cards and the dealer button)
     const mid = mine.length && mine.reduce((s, d) => [s[0] + d.pos[0] / mine.length, s[1] + d.pos[1] / mine.length, s[2] + d.pos[2] / mine.length], [0, 0, 0]);
     const button = buttonOf(ents);
-    const toward = aim === 'button' && button ? [button.pos[0], button.pos[1] - 0.1, button.pos[2]] : TABLE;
-    const target = aim === 'table' || !mine.length ? TABLE : mid.map((v, i) => 0.55 * v + 0.45 * toward[i]);
+    const myBoard = board.length ? board.reduce((s, d) => [s[0] + d.pos[0] / board.length, s[1] + d.pos[1] / board.length, s[2] + d.pos[2] / board.length], [0, 0, 0]) : TABLE;
+    const toward = aim === 'button' && button ? [button.pos[0], button.pos[1] - 0.1, button.pos[2]] : myBoard;
+    const target = aim === 'table' || !mine.length ? myBoard : mid.map((v, i) => 0.55 * v + 0.45 * toward[i]);
     const dx = target[0] - me.eye[0], dy = target[1] - me.eye[1], dz = target[2] - me.eye[2];
     const yaw = (Math.atan2(-dx, dz) * 180) / Math.PI, pitch = (-Math.atan2(dy, Math.hypot(dx, dz)) * 180) / Math.PI;
     const others = bots.filter((o) => o !== b).map((o) => ({ type: 'player', name: o.name, eye: where[o.name].eye, yaw: where[o.name].yaw }));
@@ -194,16 +203,16 @@ async function main() {
     const end = Date.now() + 150000;
     let won = null;
     while (Date.now() < end && !won) {
-      const view = displays(a.bot);
-      if (!shotPre && !view.some(isBoard) && bots.every((b) => {
-        return displays(b.bot).filter((d) => d.type === 'item_display' && d.model && d.model !== 'back' && !isBoard(d)).length >= 2;
-      })) {
+      const common = commonFaces(bots);
+      // flop, turn, river as they land; more than 5 shared faces means the showdown reveal has started
+      if (common.length <= 5) common.forEach((m) => boardModels.add(m));
+      if (!shotPre && !common.length && bots.every((b) => faceModels(b.bot).size >= 2)) {
         await sleep(2000);
         console.log('preflop:');
         await shoot(bots, 'preflop', 'button');
         shotPre = true;
       }
-      if (!shotFlop && view.filter(isBoard).length >= 3) {
+      if (!shotFlop && boardModels.size >= 3) {
         await sleep(2000); // cards slide in and flip over ~1 s
         console.log('flop:');
         await shoot(bots, 'flop', 'mine');
