@@ -175,6 +175,7 @@ module.exports = {
   // Round 3: hole cards lie flat like the board (face up), and opponents still see only backs.
   async holeCardsFlat(bots) {
     const [a, b] = bots;
+    const start = new Map([[a, a.mark()], [b, b.mark()]]); // only this scenario's lines count below
     check('a hand is dealt with 2 players', await sitTwo(bots));
     await sleep(1000);
     for (const [label, sel] of [
@@ -194,7 +195,7 @@ module.exports = {
       sb.seat4.face === 2 && sb.seat4.back === 0 && sb.seat1.face === 0 && sb.seat1.back === 2, JSON.stringify(sb));
 
     // Check down to a showdown: the reveal flip respawns face-up cards (~4 ticks later); they must be flat too.
-    const seen = new Map([[a, Math.max(0, a.log.length - 20)], [b, Math.max(0, b.log.length - 20)]]);
+    const seen = new Map(start);
     let won = false;
     const end = Date.now() + 90000;
     while (!won && Date.now() < end) {
