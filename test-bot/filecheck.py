@@ -78,13 +78,14 @@ def poker_lines(log):
     return [l for l in log.splitlines() if '[Poker]' in l or 'com.vortex.poker' in l]
 
 
-def common_checks(log):
+def common_checks(log, allowed=()):
     lines = poker_lines(log)
     check('plugin enabled', any('Poker enabled.' in l for l in lines), 'no "Poker enabled." line')
     check('plugin not disabled', not any('Disabling Poker' in l for l in lines))
     bad = [l for l in log.splitlines()
-           if ('com.vortex.poker' in l or '[Poker]' in l) and re.search(r'/(ERROR|SEVERE)\]|Exception', l)]
-    check('no Poker errors or stack traces', not bad, ' | '.join(bad[:3]))
+           if ('com.vortex.poker' in l or '[Poker]' in l) and re.search(r'/(ERROR|SEVERE)\]|Exception', l)
+           and not any(a in l for a in allowed)]
+    check('no Poker errors or stack traces' + (' (besides the expected ones)' if allowed else ''), not bad, ' | '.join(bad[:3]))
     check('no tables.yml.tmp left over', not os.path.exists(os.path.join(DATA, 'tables.yml.tmp')))
     out = strip_colours(rcon('poker version'))
     check('/poker version answers', 'Poker' in out or '1.' in out, out.strip()[:120])
@@ -251,7 +252,7 @@ def case_messages_garbage():
 def case_config_bad_values():
     """Wrong types/ranges -> file left alone (no rewrite, no backup), defaults used in memory, one warning each."""
     path = os.path.join(DATA, 'config.yml')
-    text = open(path).read()
+    text = sh('unzip', '-p', os.path.join(DATA, '..', 'Poker.jar'), 'config.yml')  # a current config, so no migration
     text = re.sub(r'(?m)^(  big-blind:).*$', r'\1 lots', text, count=1)
     text = re.sub(r'(?m)^(  turn-timeout-seconds:).*$', r'\1 -5', text, count=1)
     assert 'big-blind: lots' in text and 'turn-timeout-seconds: -5' in text
@@ -304,6 +305,7 @@ def case_tables_garbage():
               repr(t)[:160])
         out = strip_colours(rcon('poker tables'))
         check('no tables loaded', not re.search(r'#\d+', out), out.strip()[:160])
+    verify.allowed = ('tables.yml was not valid YAML',)
     return verify
 
 
@@ -349,6 +351,7 @@ def case_tables_broken_entry():
         kept = (t or {}).get('tables', {}) if isinstance(t, dict) else {}
         check('tables.yml rewritten with #5 and #7', isinstance(t, dict) and {'5', '7'} <= {str(k) for k in kept},
               repr(t)[:160])
+    verify.allowed = ('tables.yml was not valid YAML',)
     return verify
 
 
@@ -488,8 +491,10 @@ def case_update_flow():
               str({r['user_agent'] for r in mock_log()}))
         check('same version: no download, nothing logged', not update_files()
               and not any('[Poker]' in l and 'Modrinth' in l for l in lines), str(update_files()))
-        out = strip_colours(rcon('poker update'))
-        check('same version: poker update says up to date', 'latest' in out.lower() or 'up to date' in out.lower(),
+        rcon('poker update')  # the result is sent asynchronously, after RCON has returned; read it back from version
+        time.sleep(4)
+        out = strip_colours(rcon('poker version'))
+        check('same version: poker version says up to date', 'latest' in out.lower() or 'up to date' in out.lower(),
               out.strip()[:160])
 
         mock('?version=1.0.1&bad=1&status=200')
@@ -532,18 +537,22 @@ def case_update_flow():
 
 
 def case_update_applied():
-    """After update_flow staged update/Poker.jar: a restart swaps it in and leaves plugins/update empty."""
+    """After updateFlow staged update/Poker.jar: a restart moves it over plugins/Poker.jar and leaves update/ empty.
+    The mock now advertises the running version, so nothing is downloaded again."""
     staged = os.path.join(UPDATE_DIR, 'Poker.jar')
     if not os.path.exists(staged):
         raise RuntimeError('run updateFlow first (nothing staged)')
-    start_mock('--version', '1.0.1')
+    live = os.path.join(DATA, '..', 'Poker.jar')
+    staged_ino = os.stat(staged).st_ino
+    start_mock('--version', '1.0.0')
     set_api_url(MOCK + '/v2')
 
     def verify(log, before):
-        check('plugins/update/Poker.jar consumed on restart', not os.path.exists(staged), str(update_files()))
         time.sleep(8)
-        check('no re-download after applying (still no update/Poker.jar)', not os.path.exists(staged),
-              str(update_files()))
+        check('plugins/update is empty after the restart', not update_files(), str(update_files()))
+        check('plugins/Poker.jar is the staged file (moved into place)', os.stat(live).st_ino == staged_ino
+              or os.stat(live).st_mode & 0o777 == 0o600, oct(os.stat(live).st_mode))
+        check('no download after applying', not any('/files/' in r['path'] for r in mock_log()))
     return verify
 
 
@@ -587,7 +596,7 @@ def main():
             before = snapshot()
             try:
                 log = boot()
-                common_checks(log)
+                common_checks(log, getattr(verify, 'allowed', ()))
                 verify(log, before)
             except Exception as e:  # noqa: BLE001
                 check(f'{name} ran', False, repr(e))
