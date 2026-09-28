@@ -358,6 +358,8 @@ class ConfigFileUpdaterTest {
         assertEquals(30, now.getInt("game.ready-timeout-seconds"), "added since the old build");
         assertEquals("ask Vortex before changing blinds", now.getString("my-server-note"), "unknown keys stay");
         assertTrue(text(f).contains("# raised for the casino floor"));
+        assertTrue(text(f).contains("# added by hand from a forum post\n  show-hand-strength: true"),
+            "a moved key takes its comment along");
         assertEquals(original, text(new File(dir, "config.yml.pre-update.bak")));
         assertEquals(List.of("my-server-note"), r.unknownKeys());
         assertTrue(warnings().contains("config.yml: unknown key(s) left as they are: my-server-note"), warnings().toString());

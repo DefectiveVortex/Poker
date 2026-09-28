@@ -24,7 +24,7 @@ import java.util.function.BiConsumer;
 
 /**
  * /poker (alias /pk). Players: join, leave, fold, check, call, bet, raise, allin, topup, menu, stats, tables.
- * Admins (poker.admin): createtable, removetable, settable, cleanup, reload. Amounts for bet and raise are the
+ * Admins (poker.admin): createtable, removetable, settable, cleanup, reload, update. Amounts for bet and raise are the
  * player's total for the street ("raise to").
  */
 public class PokerCommand implements TabExecutor {
@@ -33,7 +33,8 @@ public class PokerCommand implements TabExecutor {
     private static final String STATS_OTHERS = "poker.stats.others";
     private static final List<String> PLAYER_SUBS = List.of("help", "join", "leave", "fold", "check", "call", "bet",
         "raise", "allin", "ready", "topup", "menu", "stats", "tables", "version");
-    private static final List<String> ADMIN_SUBS = List.of("createtable", "removetable", "settable", "cleanup", "reload");
+    private static final List<String> ADMIN_SUBS = List.of("createtable", "removetable", "settable", "cleanup", "reload",
+        "update");
     private static final int MAX_CLEANUP_RADIUS = 64;
 
     private final PokerPlugin plugin;
@@ -56,12 +57,26 @@ public class PokerCommand implements TabExecutor {
         switch (sub) {
             case "help" -> help(sender);
             case "tables" -> listTables(sender);
-            case "version" -> sender.sendMessage(cfg().formatPrefixed("version-current",
-                "version", plugin.getDescription().getVersion()));
+            case "version" -> {
+                if (plugin.getUpdateService() != null) {
+                    plugin.getUpdateService().sendStatus(sender);
+                } else {
+                    sender.sendMessage(cfg().formatPrefixed("version-current", "version", plugin.getDescription().getVersion()));
+                }
+            }
+            case "update" -> {
+                if (!check(sender, ADMIN)) return true;
+                if (plugin.getUpdateService() != null) {
+                    plugin.getUpdateService().checkNow(sender);
+                }
+            }
             case "stats" -> stats(sender, args);
             case "reload" -> {
                 if (!check(sender, ADMIN)) return true;
                 int warnings = cfg().reload();
+                if (plugin.getUpdateService() != null) {
+                    plugin.getUpdateService().reload();
+                }
                 sender.sendMessage(warnings == 0 ? cfg().getPrefixed("reload-done")
                     : cfg().formatPrefixed("reload-warnings", "count", warnings));
             }

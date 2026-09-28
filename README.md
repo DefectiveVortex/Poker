@@ -48,8 +48,9 @@ All commands are `/poker` (alias `/pk`). For `bet` and `raise`, the amount is yo
 | `/poker settable <key:value…>` | Change the nearest table (`settable big-blind 50` works too) | `poker.admin` |
 | `/poker removetable [id]` | Remove the nearest table, or one by ID (seated players are cashed out) | `poker.admin` |
 | `/poker cleanup [radius]` | Remove leftover card displays nearby | `poker.admin` |
-| `/poker reload` | Reload `config.yml` and messages | `poker.admin` |
-| `/poker version` | Show the plugin version | everyone |
+| `/poker reload` | Check, repair and reload `config.yml` and messages | `poker.admin` |
+| `/poker version` | The plugin version and whether an update is out | everyone |
+| `/poker update` | Check Modrinth now and download a newer version | `poker.admin` |
 
 Table settings are `seats`, `small-blind`, `big-blind`, `min-buy-in` and `max-buy-in` (both in big blinds), and `max-join-distance`. The seat count can only be changed while the table is empty.
 
@@ -67,7 +68,27 @@ Table settings are `seats`, `small-blind`, `big-blind`, `min-buy-in` and `max-bu
 
 By default the turn prompt shows your cards and the board but not what hand you hold, so players read their own hand. Set `interface.show-hand-strength: true` to add "You have: Two Pair, Kings and Sevens" to it. Showdowns and the winner's title always name the winning hand.
 
-Messages live in `messages.yml` (English) and `messages_<code>.yml`. Pick a language with `language:` in `config.yml` (`en`, `ko`, `tr`, `ru`), and apply it with `/poker reload`. New keys are added to your files automatically on update, and anything a translation lacks falls back to English.
+Messages live in `messages.yml` (English) and `messages_<code>.yml`. Pick a language with `language:` in `config.yml` (`en`, `ko`, `tr`, `ru`), and apply it with `/poker reload`. Anything a translation lacks falls back to English.
+
+### Updates
+
+Poker checks [Modrinth](https://modrinth.com/plugin/pokerplugin) for new versions at startup and every `updates.interval-hours`, tells admins when they join, and with `updates.auto-download: true` puts the new jar in `plugins/update/`, so it's installed on the next restart. The running version is never replaced. `updates.channel` is `release`, `beta` or `alpha`; set `updates.check: false` to turn it all off.
+
+### Your files survive updates and mistakes
+
+Every start and every `/poker reload` checks `config.yml`, the messages file in use and `stats.yml` before anything reads them. What it finds goes to the console, and `/poker reload` tells you how many warnings there were.
+
+| Problem | What Poker does |
+|---|---|
+| A file is missing | Recreates it from the default |
+| A file isn't valid YAML (a stray tab, a missing quote, a half-written file) | Renames it to `<name>.broken-<date>-<time>` (it never deletes your file), rebuilds it from the defaults, and keeps every setting it could still read. For `stats.yml` it keeps every player entry it could read |
+| A setting is missing, or the file is from an older version | Adds the new settings with their defaults and moves renamed ones, keeping your values and comments. The previous file is saved as `<name>.pre-update.bak` |
+| A setting has the wrong type or makes no sense (`big-blind: lots`, a negative blind, a big blind below the small blind) | Uses the default for that setting only and names it in a warning. Your file isn't changed, so fix it and `/poker reload` |
+| A setting Poker doesn't know | Leaves it where it is and warns once per load |
+| A known setting at the wrong level (e.g. `chat-buttons:` at the top instead of under `interface:`) | Moves it where it belongs |
+| A message still has an older version's default text | Replaces it with the new default. Messages you've changed are never touched |
+
+`config-version:` at the top of each file is what upgrades use. Leave it as it is.
 
 ## Building
 

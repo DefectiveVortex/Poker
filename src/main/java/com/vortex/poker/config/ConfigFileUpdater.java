@@ -268,14 +268,18 @@ public final class ConfigFileUpdater {
     }
 
     private static void copyComments(ConfigurationSection from, ConfigurationSection to, String path) {
+        copyComments(from, to, path, path);
+    }
+
+    private static void copyComments(ConfigurationSection from, ConfigurationSection to, String fromPath, String toPath) {
         try {
-            List<String> comments = from.getComments(path);
-            if (!comments.isEmpty() && !comments.equals(to.getComments(path))) {
-                to.setComments(path, comments);
+            List<String> comments = from.getComments(fromPath);
+            if (!comments.isEmpty() && !comments.equals(to.getComments(toPath))) {
+                to.setComments(toPath, comments);
             }
-            List<String> inline = from.getInlineComments(path);
-            if (!inline.isEmpty() && !inline.equals(to.getInlineComments(path))) {
-                to.setInlineComments(path, inline);
+            List<String> inline = from.getInlineComments(fromPath);
+            if (!inline.isEmpty() && !inline.equals(to.getInlineComments(toPath))) {
+                to.setInlineComments(toPath, inline);
             }
         } catch (NoSuchMethodError ignored) {
             // no comment API on this server: values are still kept
@@ -307,6 +311,7 @@ public final class ConfigFileUpdater {
                 continue;
             }
             user.set(target, user.get(path));
+            moveComments(user, path, target);
             user.set(path, null);
             removeEmptyParents(user, path);
             log.info(name + ": moved " + path + " to " + target + ".");
@@ -322,6 +327,7 @@ public final class ConfigFileUpdater {
         }
         if (!config.contains(to)) {
             config.set(to, config.get(from));
+            moveComments(config, from, to);
         }
         config.set(from, null);
         removeEmptyParents(config, from);
@@ -341,6 +347,11 @@ public final class ConfigFileUpdater {
             }
         }
         return 0;
+    }
+
+    /** The admin's comments above and beside a key go with it when it moves. */
+    private static void moveComments(ConfigurationSection config, String from, String to) {
+        copyComments(config, config, from, to);
     }
 
     private static void removeEmptyParents(ConfigurationSection config, String path) {
