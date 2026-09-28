@@ -37,8 +37,8 @@ import java.util.UUID;
  * TextDisplays for the pot, the seats and whose turn it is, and a small chip stack.
  *
  * A hole card is two displays in the same spot: the face, shown only to its owner, and the back,
- * hidden from its owner. Everyone else sees the back. Hole cards stand tilted on the felt edge in
- * front of their chair, facing the sitter; at showdown they flip down flat and face up. Bukkit
+ * hidden from its owner. Everyone else sees the back. Hole cards lie flat on the felt edge in
+ * front of their chair; at showdown they flip over (squash edge-on, open out as the face). Bukkit
  * forgets per-player hiding when a player relogs or changes world, so {@link #refreshVisibility}
  * puts it back.
  *
@@ -150,18 +150,17 @@ public class WorldTableView implements TableView {
 
         SeatCards sc = new SeatCards();
         sc.owner = owner == null ? null : owner.getUniqueId();
-        double tilt = Math.toRadians(TableLayout.HOLE_TILT_DEGREES);
         for (int i = 0; i < cards.size(); i++) {
-            Location loc = holeCardLocation(seat, i, cards.size(), TableLayout.holeCardHeight(holeScale()));
+            Location loc = holeCardLocation(seat, i, cards.size(), config().getCardHeight());
             float top = layout.getCardTopYaw(seat);
             String seatTag = SEAT_CARD_TAG_PREFIX + seat;
 
-            ItemDisplay face = spawnCard(loc, cards.get(i), top, tilt, holeScale(), true, seatTag);
+            ItemDisplay face = spawnCard(loc, cards.get(i), top, 0, holeScale(), true, seatTag);
             if (face == null) continue;
             face.setVisibleByDefault(false);
             sc.faces.add(face);
 
-            ItemDisplay back = spawnCard(loc, null, top, tilt, holeScale(), true, seatTag);
+            ItemDisplay back = spawnCard(loc, null, top, 0, holeScale(), true, seatTag);
             if (back != null) sc.backs.add(back);
         }
         seatCards.put(seat, sc);
@@ -200,8 +199,8 @@ public class WorldTableView implements TableView {
     }
 
     /**
-     * Flip a seat's cards face up for everyone: the standing cards squash away edge-on, then flat
-     * face-up cards grow back in their place.
+     * Flip a seat's cards face up for everyone: the cards squash away edge-on, then face-up cards
+     * open out in their place.
      */
     @Override
     public void revealHoleCards(int seat, List<Card> cards) {
