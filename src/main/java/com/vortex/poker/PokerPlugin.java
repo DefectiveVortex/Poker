@@ -12,6 +12,7 @@ import com.vortex.poker.stats.StatsManager;
 import com.vortex.poker.table.CardDisplayCleaner;
 import com.vortex.poker.table.TableInteractListener;
 import com.vortex.poker.table.TableManager;
+import com.vortex.poker.update.UpdateService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -26,6 +27,7 @@ public class PokerPlugin extends JavaPlugin {
     private ActionMenu actionMenu;
     private PlayerUI playerUI;
     private PokerPlaceholderExpansion placeholderExpansion;
+    private UpdateService updateService;
 
     @Override
     public void onEnable() {
@@ -76,11 +78,16 @@ public class PokerPlugin extends JavaPlugin {
             getLogger().info("PlaceholderAPI found: placeholders enabled.");
         }
 
+        // Checks Modrinth asynchronously a few seconds after enable, then on its interval
+        updateService = new UpdateService(this);
+        updateService.start();
+
         getLogger().info("Poker enabled.");
     }
 
     @Override
     public void onDisable() {
+        if (updateService != null) updateService.stop();
         // Tables first: this voids hands in progress and refunds their contributions while the economy is still up.
         if (tableManager != null) tableManager.shutdown();
         if (placeholderExpansion != null) placeholderExpansion.unregister();
@@ -97,6 +104,10 @@ public class PokerPlugin extends JavaPlugin {
 
     public StatsManager getStatsManager() {
         return statsManager;
+    }
+
+    public UpdateService getUpdateService() {
+        return updateService;
     }
 
     public CardResourcePack getCardResourcePack() {
