@@ -322,7 +322,10 @@ final class TableStore {
     // ---------------------------------------------------------------------------------------
 
     private static final Pattern TOP_KEY = Pattern.compile("^([A-Za-z0-9_-]+):\\s*(.*?)\\s*$");
-    private static final Pattern CHILD_KEY = Pattern.compile("^\\s+['\"]?([^'\":#]+?)['\"]?\\s*:\\s*(#.*)?$");
+    // an entry's first line: block style ("  '12':") or flow style ("  '12': {world: ...")
+    private static final Pattern CHILD_KEY = Pattern.compile("^\\s+['\"]?([^'\":#\\s][^'\":#]*?)['\"]?\\s*:(\\s.*)?$");
+    // any indented numeric key, however broken the lines around it are
+    private static final Pattern ID_KEY = Pattern.compile("^\\s+['\"]?(\\d{1,9})['\"]?\\s*:");
 
     /** Read what we can from a broken tables.yml: every table entry that parses on its own. */
     private YamlConfiguration salvage(File broken, List<Skipped> skipped) {
@@ -359,6 +362,11 @@ final class TableStore {
             } else if (top.group(1).equals("tables")) {
                 maxId = Math.max(maxId, salvageTables(lines, i + 1, out, skipped));
             }
+        }
+        // new tables must not reuse an ID that only survives in the broken copy
+        for (String line : lines) {
+            Matcher id = ID_KEY.matcher(line);
+            if (id.find()) maxId = Math.max(maxId, Integer.parseInt(id.group(1)));
         }
         out.set("format-version", format);
         out.set("next-id", (int) Math.max(Math.min(nextId, Integer.MAX_VALUE), maxId + 1L));

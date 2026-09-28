@@ -207,6 +207,19 @@ class TableStoreTest {
     }
 
     @Test
+    void idsOnlySeenInTheGarbageAreNotReused() throws IOException {
+        // D1's filecheck tablesGarbage: table 12 exists only inside the unparseable text
+        write("next-id: 3\ntables:\n  '12': {world: world, x: 0, y: -60\n  garbage ][ :::\n");
+        List<TableStore.Skipped> skipped = new TableStore(tablesFile(), LOG).load().skipped();
+        assertTrue(skipped.stream().anyMatch(s -> s.key().equals("12")), "the broken entry is reported");
+        YamlConfiguration rewritten = YamlConfiguration.loadConfiguration(tablesFile());
+        assertEquals(13, rewritten.getInt("next-id"));
+        TableStore reloaded = new TableStore(tablesFile(), LOG);
+        reloaded.load();
+        assertEquals(13, reloaded.nextId(), "a new table gets an ID past the one in the .broken copy");
+    }
+
+    @Test
     void anOldFileIsMigratedWithABackupAndItsTablesMarkedForARebuild() throws IOException {
         // round 1: no format-version, no layout key (the 5x3 felt)
         String old = "next-id: 3\ntables:\n"
