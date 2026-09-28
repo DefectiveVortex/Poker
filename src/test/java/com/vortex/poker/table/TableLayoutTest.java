@@ -119,21 +119,15 @@ class TableLayoutTest {
     }
 
     @Test
-    void ownHoleCardsAreRightInFrontAndFaceTheEyes() {
-        double tilt = Math.toRadians(TableLayout.HOLE_TILT_DEGREES);
-        double height = TableLayout.holeCardHeight(HOLE_SCALE);
+    void ownHoleCardsAreRightInFront() {
         for (int n = TableLayout.MIN_SEATS; n <= TableLayout.MAX_SEATS; n++) {
             TableLayout layout = new TableLayout(null, 0, 64, 0, BlockFace.NORTH, n);
             for (int seat = 0; seat < n; seat++) {
                 double[] spot = layout.cardSpotUV(seat), eye = layout.eyeUV(seat), in = layout.inwardUV(seat);
-                double d = eyeDistance(layout, seat, spot, height);
+                double d = eyeDistance(layout, seat, spot, CARD_HEIGHT);
                 assertTrue(d >= 0.45 && d <= 0.9, "n=" + n + " seat " + seat + " hole cards at " + d);
-                // The card leans back towards the sitter: its face normal is (-in * sin t, cos t).
-                double toEyeForward = (eye[0] - spot[0]) * in[0] + (eye[1] - spot[1]) * in[1]; // negative
-                double toEyeUp = TableLayout.SEATED_EYE_HEIGHT - height;
-                double len = Math.hypot(toEyeForward, toEyeUp);
-                double facing = (-toEyeForward * Math.sin(tilt) + toEyeUp * Math.cos(tilt)) / len;
-                assertTrue(facing > 0.95, "n=" + n + " seat " + seat + " cards face the eyes: " + facing);
+                double ahead = (spot[0] - eye[0]) * in[0] + (spot[1] - eye[1]) * in[1];
+                assertTrue(ahead > 0.3, "n=" + n + " seat " + seat + " cards ahead of the sitter: " + ahead);
             }
         }
     }
@@ -142,7 +136,7 @@ class TableLayoutTest {
     private static double[] holeRect(TableLayout layout, int seat) {
         double[] s = layout.cardSpotUV(seat), in = layout.inwardUV(seat);
         double halfAlong = HOLE_SPACING / 2 + HOLE_SCALE * TableLayout.CARD_WIDTH_RATIO / 2;
-        double halfDepth = HOLE_SCALE / 2 * Math.cos(Math.toRadians(TableLayout.HOLE_TILT_DEGREES));
+        double halfDepth = HOLE_SCALE / 2; // flat: the card's full height runs across the edge
         double hu = in[0] != 0 ? halfDepth : halfAlong, hv = in[0] != 0 ? halfAlong : halfDepth;
         return new double[] {s[0] - hu, s[0] + hu, s[1] - hv, s[1] + hv};
     }
