@@ -9,16 +9,12 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Stairs;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,8 +30,9 @@ public class TableManager {
     private final PokerPlugin plugin;
     private final Map<Integer, PokerTable> tables = new ConcurrentSkipListMap<>();
     private final Map<UUID, PokerTable> playerTables = new ConcurrentHashMap<>();
-    private final File tablesFile;
-    private YamlConfiguration tablesConfig = new YamlConfiguration();
+    private final TableStore store;
+    /** Tables whose world isn't loaded (yet), by ID. */
+    private final Map<Integer, TableStore.Entry> waitingForWorld = new ConcurrentSkipListMap<>();
 
     /** A block that belongs to a table: a chair (seat 0..n-1) or the felt (seat -1). */
     public record TableBlock(PokerTable table, int seat) {}
@@ -48,7 +45,7 @@ public class TableManager {
 
     public TableManager(PokerPlugin plugin) {
         this.plugin = plugin;
-        this.tablesFile = new File(plugin.getDataFolder(), "tables.yml");
+        this.store = new TableStore(new File(plugin.getDataFolder(), "tables.yml"), plugin.getLogger());
     }
 
     private ConfigManager config() {
@@ -60,38 +57,83 @@ public class TableManager {
     // -------------------------------------------------------------------------
 
     public void loadTables() {
-        tablesConfig = YamlConfiguration.loadConfiguration(tablesFile);
-        ConfigurationSection section = tablesConfig.getConfigurationSection("tables");
-        if (section != null) {
-            for (String key : section.getKeys(false)) {
-                ConfigurationSection entry = section.getConfigurationSection(key);
-                int id;
-                try {
-                    id = Integer.parseInt(key);
-                } catch (NumberFormatException e) {
-                    plugin.getLogger().warning("Skipping table with a non-numeric ID in tables.yml: " + key);
-                    continue;
-                }
-                if (entry == null) continue;
-
-                String worldName = entry.getString("world", "");
-                World world = Bukkit.getWorld(worldName);
-                if (world == null) {
-                    // left in tables.yml untouched, so it comes back once the world is loaded again
-                    plugin.getLogger().warning("Poker table #" + id + " is in world '" + worldName + "', which isn't loaded; skipping it.");
-                    continue;
-                }
-                BlockFace facing = parseFacing(entry.getString("facing"));
-                TableSettings settings = readSettings(entry);
-                TableLayout layout = new TableLayout(world, entry.getInt("x"), entry.getInt("y"), entry.getInt("z"),
-                    facing, settings.getMaxSeats(config()));
-                if (entry.getInt("layout", 1) < LAYOUT_VERSION) {
-                    rebuildLegacyTable(id, layout, settings);
-                }
-                tables.put(id, new PokerTable(plugin, this, id, layout, settings));
+        TableStore.Loaded loaded = store.load();
+        for (TableStore.Skipped skip : loaded.skipped()) {
+            String where = loaded.state() == TableStore.FileState.BROKEN
+                ? "it is only in " + (loaded.brokenCopy() == null ? "the broken copy" : loaded.brokenCopy().getName())
+                : "left in tables.yml untouched";
+            plugin.getLogger().warning("Poker table '" + skip.key() + "' in tables.yml not loaded: " + skip.reason() + " (" + where + ")");
+        }
+        int waiting = 0, skipped = loaded.skipped().size();
+        for (TableStore.Entry entry : loaded.entries()) {
+            switch (tryLoad(entry)) {
+                case WAITING_FOR_WORLD -> waiting++;
+                case SKIPPED -> skipped++;
+                default -> { }
             }
         }
-        plugin.getLogger().info("Loaded " + tables.size() + " poker table(s)");
+        StringBuilder line = new StringBuilder("Loaded " + tables.size() + " poker table(s)");
+        if (waiting > 0) line.append(", ").append(waiting).append(" waiting for their world to load");
+        if (skipped > 0) line.append(", ").append(skipped).append(" skipped (see the warnings above)");
+        plugin.getLogger().info(line.toString());
+    }
+
+    private enum LoadOutcome { LOADED, WAITING_FOR_WORLD, SKIPPED }
+
+    /**
+     * Build one table from its tables.yml entry, if its world is loaded and it fits there. A table
+     * whose world isn't loaded waits for it (see {@link #onWorldLoaded}); it is never removed from
+     * tables.yml for that, nor for anything else short of /poker removetable.
+     */
+    private LoadOutcome tryLoad(TableStore.Entry entry) {
+        int id = entry.id();
+        if (tables.containsKey(id)) return LoadOutcome.LOADED;
+        World world = Bukkit.getWorld(entry.world());
+        if (world == null) {
+            waitingForWorld.put(id, entry);
+            plugin.getLogger().warning("Poker table #" + id + " is in world '" + entry.world()
+                + "', which isn't loaded; it will load when the world does (left in tables.yml).");
+            return LoadOutcome.WAITING_FOR_WORLD;
+        }
+        waitingForWorld.remove(id);
+        String problem = null;
+        if (entry.y() < world.getMinHeight() || entry.y() + 1 >= world.getMaxHeight()) {
+            problem = "y " + entry.y() + " is outside world '" + world.getName() + "' (" + world.getMinHeight()
+                + " to " + (world.getMaxHeight() - 2) + ")";
+        }
+        if (problem == null) problem = entry.settings().validate(config());
+        TableLayout layout = null;
+        if (problem == null) {
+            layout = new TableLayout(world, entry.x(), entry.y(), entry.z(), entry.facing(), entry.settings().getMaxSeats(config()));
+            for (PokerTable other : tables.values()) {
+                if (layout.overlaps(other.getLayout())) {
+                    problem = "it overlaps table #" + other.getId();
+                    break;
+                }
+            }
+        }
+        if (problem != null) {
+            plugin.getLogger().warning("Poker table #" + id + " in tables.yml not loaded: " + problem + " (left in tables.yml untouched)");
+            return LoadOutcome.SKIPPED;
+        }
+        if (entry.layout() < LAYOUT_VERSION) {
+            rebuildLegacyTable(id, layout, entry.settings());
+        }
+        tables.put(id, new PokerTable(plugin, this, id, layout, entry.settings()));
+        return LoadOutcome.LOADED;
+    }
+
+    /** A world came up: load the tables that were waiting for it. */
+    public void onWorldLoaded(World world) {
+        List<TableStore.Entry> ready = waitingForWorld.values().stream()
+            .filter(e -> e.world().equals(world.getName())).toList();
+        int loaded = 0;
+        for (TableStore.Entry entry : ready) {
+            if (tryLoad(entry) == LoadOutcome.LOADED) loaded++;
+        }
+        if (loaded > 0) {
+            plugin.getLogger().info("Loaded " + loaded + " poker table(s) in world '" + world.getName() + "'");
+        }
     }
 
     /**
@@ -141,7 +183,7 @@ public class TableManager {
         buildFelt(layout);
         buildChairs(layout);
 
-        int id = nextId();
+        int id = store.nextId();
         writeEntry(id, layout, settings);
         saveTablesFile();
 
@@ -204,7 +246,7 @@ public class TableManager {
             clearChairs(layout);
         }
 
-        tablesConfig.set("tables." + table.getId(), null);
+        store.remove(table.getId());
         saveTablesFile();
         return true;
     }
@@ -333,60 +375,12 @@ public class TableManager {
     // tables.yml
     // -------------------------------------------------------------------------
 
-    private static BlockFace parseFacing(String name) {
-        if (name == null) return BlockFace.NORTH;
-        try {
-            return TableLayout.cardinal(BlockFace.valueOf(name.trim().toUpperCase(Locale.ROOT)));
-        } catch (IllegalArgumentException e) {
-            return BlockFace.NORTH;
-        }
-    }
-
-    private int nextId() {
-        int id = Math.max(1, tablesConfig.getInt("next-id", 1));
-        tablesConfig.set("next-id", id + 1);
-        return id;
-    }
-
     private void writeEntry(int id, TableLayout layout, TableSettings settings) {
-        String path = "tables." + id;
-        tablesConfig.set(path, null);
-        tablesConfig.set(path + ".world", layout.getWorld().getName());
-        tablesConfig.set(path + ".x", layout.getX());
-        tablesConfig.set(path + ".y", layout.getY());
-        tablesConfig.set(path + ".z", layout.getZ());
-        tablesConfig.set(path + ".facing", layout.getFacing().name());
-        tablesConfig.set(path + ".layout", LAYOUT_VERSION);
-        // only overrides are written; anything unset follows config.yml
-        tablesConfig.set(path + ".seats", settings.getRawMaxSeats());
-        tablesConfig.set(path + ".small-blind", settings.getRawSmallBlind());
-        tablesConfig.set(path + ".big-blind", settings.getRawBigBlind());
-        tablesConfig.set(path + ".min-buy-in-bb", settings.getRawMinBuyInBB());
-        tablesConfig.set(path + ".max-buy-in-bb", settings.getRawMaxBuyInBB());
-        tablesConfig.set(path + ".max-join-distance", settings.getRawMaxJoinDistance());
+        store.put(id, layout.getWorld().getName(), layout.getX(), layout.getY(), layout.getZ(),
+            layout.getFacing(), LAYOUT_VERSION, settings);
     }
 
     private boolean saveTablesFile() {
-        tablesConfig.options().setHeader(List.of(
-            "Poker tables, by ID. Managed by the plugin: use /poker createtable, /poker settable and",
-            "/poker removetable instead of editing this while the server is running.",
-            "Settings left out of a table follow config.yml. Buy-ins are in big blinds."));
-        try {
-            tablesConfig.save(tablesFile);
-            return true;
-        } catch (IOException e) {
-            plugin.getLogger().severe("Could not save tables.yml: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private static TableSettings readSettings(ConfigurationSection sec) {
-        Integer seats = sec.contains("seats") ? sec.getInt("seats") : null;
-        Long sb = sec.contains("small-blind") ? sec.getLong("small-blind") : null;
-        Long bb = sec.contains("big-blind") ? sec.getLong("big-blind") : null;
-        Integer minBB = sec.contains("min-buy-in-bb") ? sec.getInt("min-buy-in-bb") : null;
-        Integer maxBB = sec.contains("max-buy-in-bb") ? sec.getInt("max-buy-in-bb") : null;
-        Double dist = sec.contains("max-join-distance") ? sec.getDouble("max-join-distance") : null;
-        return new TableSettings(seats, sb, bb, minBB, maxBB, dist);
+        return store.save();
     }
 }
