@@ -144,6 +144,35 @@ class TableLayoutTest {
         }
     }
 
+    /**
+     * Round 4 (Botcam): at 1.6 the pot label sat in front of the far players' name tags. It must stay
+     * under every eye line but above the sight lines to the board and to every other seat's cards.
+     */
+    @Test
+    void thePotLabelHidesNoNameTagCardOrBoard() {
+        double bottom = com.vortex.poker.display.WorldTableView.POT_INFO_HEIGHT;
+        double top = bottom + 0.025 * 11 * com.vortex.poker.display.WorldTableView.POT_INFO_SCALE; // one line + background
+        assertTrue(top < TableLayout.SEATED_EYE_HEIGHT - 0.03, "under the eye line: " + top);
+        for (int n = TableLayout.MIN_SEATS; n <= TableLayout.MAX_SEATS; n++) {
+            TableLayout layout = new TableLayout(null, 0, 64, 0, BlockFace.NORTH, n);
+            for (int seat = 0; seat < n; seat++) {
+                double[] eye = layout.eyeUV(seat);
+                List<double[]> targets = new ArrayList<>();
+                for (int i = 0; i < 5; i++) targets.add(layout.boardSpotUV(i, BOARD_SPACING, layout.readingUV(seat)));
+                for (int o = 0; o < n; o++) if (o != seat) targets.add(layout.cardSpotUV(o));
+                for (double[] t : targets) {
+                    // where the sight line to a card on the felt passes the middle of the table, if it does
+                    double du = t[0] - eye[0], dv = t[1] - eye[1], len = Math.hypot(du, dv);
+                    double along = -(eye[0] * du + eye[1] * dv) / len; // distance to the point nearest the middle
+                    double miss = Math.abs(eye[0] * dv - eye[1] * du) / len;
+                    if (along <= 0 || along >= len || miss > 0.3) continue; // the label is about 0.6 wide
+                    double h = TableLayout.SEATED_EYE_HEIGHT - (TableLayout.SEATED_EYE_HEIGHT - CARD_HEIGHT) * along / len;
+                    assertTrue(h < bottom - 0.02, "n=" + n + " seat " + seat + " sight line at " + h + " meets the pot label");
+                }
+            }
+        }
+    }
+
     @Test
     void ownHoleCardsAreRightInFront() {
         for (int n = TableLayout.MIN_SEATS; n <= TableLayout.MAX_SEATS; n++) {

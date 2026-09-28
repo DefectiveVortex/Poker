@@ -73,7 +73,13 @@ public class WorldTableView implements TableView {
     private static final float ACTION_SCALE = 0.7f;
     /** A new action stays up this long. */
     private static final int ACTION_SHOW_TICKS = 80;
-    private static final double POT_INFO_HEIGHT = 1.6;
+    /**
+     * The pot label over the middle, 1.28 up to about 1.47 at scale 0.7: under every seated eye line
+     * (1.52), so it never covers a far player's name tag or labels, and over the sight lines to the
+     * board and the opposite hole cards (see TableLayoutTest).
+     */
+    public static final double POT_INFO_HEIGHT = 1.28;
+    public static final float POT_INFO_SCALE = 0.7f;
     /** Top of the felt. */
     private static final double FELT_TOP = 1.0;
     /**
@@ -381,7 +387,7 @@ public class WorldTableView implements TableView {
             potInfo.setText(text);
             return;
         }
-        potInfo = spawnText(layout.at(0, 0, POT_INFO_HEIGHT), text, 0.8f);
+        potInfo = spawnText(layout.at(0, 0, POT_INFO_HEIGHT), text, POT_INFO_SCALE);
     }
 
     /**
