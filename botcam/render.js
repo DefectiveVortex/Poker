@@ -529,7 +529,7 @@ function render(scene, outFile) {
   return { missing: [...texCache.values()].filter((t) => t.missing).map((t) => t.missing) };
 }
 
-module.exports = { render, lookDir, textImage };
+module.exports = { render, lookDir, textImage, runs };
 
 if (require.main === module) {
   const [scene, out] = process.argv.slice(2);

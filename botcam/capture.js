@@ -5,19 +5,22 @@
 // Usage (poker-test must be running; see ../botcam/README.md):
 //   MC_VERSION=26.1   node capture.js            # 26.3 server through ViaBackwards
 //   MC_VERSION=1.20.1 node capture.js
-// Env: OUT (default ./shots/<server>), SCENES (default ./scenes/<server>), DUMP=1 prints raw metadata.
+// Env: ROUND (shots go to ./shots/<ROUND>/<server>; default ./shots/<server>), OUT/SCENES override,
+//      SEATS (1-based seats to fill, default 1,2,3,4,5,6; bots BotA.. in that order), DUMP=1 prints raw metadata.
+// Moments: preflop (aimed to include the dealer button), flop, showdown (aimed at the table centre).
 const fs = require('fs');
 const path = require('path');
 const { TestBot, rcon, setBalance, sleep } = require('../test-bot/lib');
-const { render } = require('./render');
+const { render, runs } = require('./render');
 // mineflayer's own deps live in test-bot/node_modules
 const dep = (name) => require(require.resolve(name, { paths: [path.join(__dirname, '../test-bot')] }));
 
 const VERSION = process.env.MC_VERSION || '26.1';
 const SERVER = /^1\.20/.test(VERSION) ? '1.20.1' : '26.3';
-const OUT = process.env.OUT || path.join(__dirname, 'shots', SERVER);
-const SCENES = process.env.SCENES || path.join(__dirname, 'scenes', SERVER);
-const SEATS = { BotA: 1, BotB: 2, BotC: 5 }; // 1-based, as /poker join takes them
+const ROUND = process.env.ROUND ? [process.env.ROUND] : [];
+const OUT = process.env.OUT || path.join(__dirname, 'shots', ...ROUND, SERVER);
+const SCENES = process.env.SCENES || path.join(__dirname, 'scenes', ...ROUND, SERVER);
+const SEATS = Object.fromEntries((process.env.SEATS || '1,2,3,4,5,6').split(',').map((n, i) => ['Bot' + 'ABCDEFGH'[i], Number(n)])); // 1-based, as /poker join takes them
 const TABLE = [0.5, -59, 0.5];               // run.js's table: centred on block 0,-60,0
 const LEGACY_NAMES = ['back', ...['s', 'h', 'd', 'c'].flatMap((s) => ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'j', 'q', 'k'].map((r) => s + r)), 'j'];
 const RX = {
@@ -115,6 +118,9 @@ function eyeOf(name) {
 
 const horiz = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
 const isBoard = (d) => d.type === 'item_display' && d.model && horiz(d.pos, TABLE) < 0.95;
+const plain = (d) => runs(d.text).map((c) => c.ch).join('').trim();
+/** The dealer button as this bot was sent it: a one-letter text display ("D"). */
+const buttonOf = (ents) => ents.find((d) => d.type === 'text_display' && /^[A-Z]$/.test(plain(d)));
 
 // ---------- the shots ----------
 async function shoot(bots, moment, aim) {
@@ -130,26 +136,30 @@ async function shoot(bots, moment, aim) {
     const board = cards.filter(isBoard);
     const faces = cards.filter((d) => !isBoard(d) && d.model !== 'back');
     const backs = cards.filter((d) => d.model === 'back');
-    // look where a seated player would: between their own cards and the board (or the table centre)
-    const target = aim === 'table' || !mine.length ? TABLE
-      : mine.reduce((s, d) => [s[0] + d.pos[0] / mine.length, s[1] + d.pos[1] / mine.length, s[2] + d.pos[2] / mine.length], [0, 0, 0])
-        .map((v, i) => 0.55 * v + 0.45 * TABLE[i]);
+    // look where a seated player would: between their own cards and the board (or the table centre,
+    // or, pre-flop, between their own cards and the dealer button)
+    const mid = mine.length && mine.reduce((s, d) => [s[0] + d.pos[0] / mine.length, s[1] + d.pos[1] / mine.length, s[2] + d.pos[2] / mine.length], [0, 0, 0]);
+    const button = buttonOf(ents);
+    const toward = aim === 'button' && button ? [button.pos[0], button.pos[1] - 0.1, button.pos[2]] : TABLE;
+    const target = aim === 'table' || !mine.length ? TABLE : mid.map((v, i) => 0.55 * v + 0.45 * toward[i]);
     const dx = target[0] - me.eye[0], dy = target[1] - me.eye[1], dz = target[2] - me.eye[2];
     const yaw = (Math.atan2(-dx, dz) * 180) / Math.PI, pitch = (-Math.atan2(dy, Math.hypot(dx, dz)) * 180) / Math.PI;
     const others = bots.filter((o) => o !== b).map((o) => ({ type: 'player', name: o.name, eye: where[o.name].eye, yaw: where[o.name].yaw }));
     const seat = SEATS[b.name];
+    const onButton = button && bots.every((o) => horiz(where[o.name].eye, button.pos) >= horiz(me.eye, button.pos));
     const scene = {
       version: SERVER, moment, viewer: b.name, seat,
       camera: { eye: me.eye, yaw, pitch, fov: 70 },
-      caption: `${b.name} (seat ${seat}) - ${moment} - Poker ${SERVER} - botcam render`,
+      caption: `${b.name} (seat ${seat}${onButton ? ', button' : ''}) - ${moment} - Poker ${SERVER}${ROUND.length ? ' ' + ROUND[0] : ''} - botcam render`,
       blocks: blocksAround(b.bot), entities: [...ents, ...others],
       counts: { faces: faces.length, backs: backs.length, board: board.length, facesNearMe: mine.filter((d) => d.model !== 'back').length },
       faces: faces.map((d) => d.model), board: board.map((d) => d.model),
     };
-    const base = `${moment}-seat${seat}-${b.name}`;
+    const base = `${moment}-seat${seat}${onButton ? '-button' : ''}-${b.name}`;
     fs.writeFileSync(path.join(SCENES, base + '.json'), JSON.stringify(scene));
     const t = Date.now();
     const r = render(scene, path.join(OUT, base + '.png'));
+    if (!button && moment !== 'showdown') report.push(`${base}: WARNING no dealer button text display found`);
     report.push(`${base}: faces seen ${JSON.stringify(scene.faces)} backs ${backs.length} board ${JSON.stringify(scene.board)} (${Date.now() - t} ms${r.missing.length ? ', missing ' + r.missing : ''})`);
   }
   console.log(report.map((l) => '  ' + l).join('\n'));
@@ -180,11 +190,19 @@ async function main() {
       console.log(' ', await b.waitFor(RX.seated, m, 8000));
     }
     // play check/call; freeze at the flop and shoot, then play on to the showdown
-    let shotFlop = false;
+    let shotFlop = false, shotPre = false;
     const end = Date.now() + 150000;
     let won = null;
     while (Date.now() < end && !won) {
       const view = displays(a.bot);
+      if (!shotPre && !view.some(isBoard) && bots.every((b) => {
+        return displays(b.bot).filter((d) => d.type === 'item_display' && d.model && d.model !== 'back' && !isBoard(d)).length >= 2;
+      })) {
+        await sleep(2000);
+        console.log('preflop:');
+        await shoot(bots, 'preflop', 'button');
+        shotPre = true;
+      }
       if (!shotFlop && view.filter(isBoard).length >= 3) {
         await sleep(2000); // cards slide in and flip over ~1 s
         console.log('flop:');

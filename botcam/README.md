@@ -1,7 +1,7 @@
 # botcam — what a seated player sees
 
-`capture.js` sits BotA/BotB/BotC in seats 1, 2 and 5 of run.js's table and plays one check/call hand.
-At the flop and again at the showdown, it dumps each bot's **own** entity table. That table holds the
+`capture.js` fills every seat of run.js's 6-seat table (BotA–BotF, seats 1–6; `SEATS=1,2,5` for fewer) and
+plays one check/call hand. Pre-flop (aimed to include the dealer button), at the flop and at the showdown, it dumps each bot's **own** entity table. That table holds the
 display entities the server actually sent that bot, so per-viewer hiding (face vs back) is real, not
 simulated. It also dumps the blocks around the table and each bot's seated eye (RCON `Pos` + 1.62).
 `render.js` then draws every view from that eye, with FOV 70.
@@ -17,8 +17,8 @@ CLOCK CustomModelData is mapped through `CardModels.MODEL_NAMES`.
 ```bash
 # poker-test running (see Poker-ops/TESTING.md), from this directory:
 ln -sfn /home/vortex/Blackjack/test-server/bot/node_modules ../test-bot/node_modules
-MC_VERSION=26.1 node capture.js                    # -> shots/26.3/*.png, scenes/26.3/*.json
-MC_VERSION=1.20.1 SERVER_DIR=/home/vortex/Poker-ops/test-server/paper-1.20.1 node capture.js
+ROUND=round4 MC_VERSION=26.1 node capture.js       # -> shots/round4/26.3/{preflop,flop,showdown}-seatN[-button]-Bot*.png
+ROUND=round4 MC_VERSION=1.20.1 node capture.js
 node render.js scenes/26.3/flop-seat1-BotA.json /tmp/x.png   # re-render a dump offline (no server)
 ```
 
