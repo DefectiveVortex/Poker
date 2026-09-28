@@ -227,8 +227,9 @@ module.exports = {
     await join(b, 300, 2);
     const x = await whoseTurn(two, marks);
     const y = x === a ? b : a;
-    const cardsLine = x.since(marks.get(x)).find((l) => /Your cards .*You have: /.test(l));
-    check('turn prompt shows cards and current hand', !!cardsLine, cardsLine);
+    const cardsLine = x.since(marks.get(x)).find((l) => /Your cards /.test(l));
+    check('turn prompt shows your cards', !!cardsLine, cardsLine);
+    check('hand strength hidden by default', !!cardsLine && !/You have: /.test(cardsLine), cardsLine);
     const mx = x.mark();
     const my = y.mark();
     x.cmd('/poker fold');

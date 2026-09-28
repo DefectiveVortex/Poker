@@ -197,6 +197,8 @@ public class ConfigManager {
     public boolean showWinTitle() { return config.getBoolean("interface.win-title", true); }
     /** Send first-time players a short how-to when they first sit down. */
     public boolean showFirstTimeGuide() { return config.getBoolean("interface.first-time-guide", true); }
+    /** Say what hand the player holds in the turn prompt ("You have: …"). Off by default. */
+    public boolean showHandStrength() { return config.getBoolean("interface.show-hand-strength", false); }
     /** Null when no candidate name exists on this server version. */
     public Particle getWinParticle() { return winParticle; }
     public float getSoundVolume(String sound) { return (float) config.getDouble("sounds." + sound + ".volume", 1.0); }

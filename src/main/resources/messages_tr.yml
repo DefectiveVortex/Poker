@@ -86,8 +86,10 @@ first-time-guide:
   - "&72 kart alırsın; 5 ortak kart 3 turda açılır. En iyi 5 kartlık eli yap."
   - "&7Kör bahisler &e%small_blind%/%big_blind%&7. Sıran gelince sohbette &cFold&7, &aCheck&7/&eCall &7ya da &6Artır&7'a tıkla."
   - "&7Potu en iyi elle ya da herkes fold yapana kadar bahis yaparak kazan. Daha fazlası için &e/poker help&7."
-turn-cards-preflop: "&7Kartların %cards% &8· &7Elin: &e%hand%"
-turn-cards: "&7Kartların %cards% &8· &7Masa %board% &8· &7Elin: &e%hand%"
+turn-line-preflop: "&7Kartların %cards%"
+turn-line: "&7Kartların %cards% &8· &7Masa %board%"
+# Appended to the line above only when interface.show-hand-strength is true
+turn-line-hand: " &8· &7Elin: &e%hand%"
 win-title: "&6&l%amount% kazandın"
 win-subtitle: "&e%hand% ile!"
 win-subtitle-uncontested: "&7herkes fold yaptı"

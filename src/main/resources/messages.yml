@@ -96,8 +96,10 @@ first-time-guide:
   - "&7Win the pot with the best hand, or by betting until everyone else folds. &e/poker help &7for more."
 
 # Your turn (the cards line comes first; the "Your turn - to call" line must keep its shape for the test bots)
-turn-cards-preflop: "&7Your cards %cards% &8· &7You have: &e%hand%"
-turn-cards: "&7Your cards %cards% &8· &7Board %board% &8· &7You have: &e%hand%"
+turn-line-preflop: "&7Your cards %cards%"
+turn-line: "&7Your cards %cards% &8· &7Board %board%"
+# Appended to the line above only when interface.show-hand-strength is true
+turn-line-hand: " &8· &7You have: &e%hand%"
 # Other languages describe hands with these (English uses its own wording, e.g. "Two Pair, Kings and Sevens")
 hand-detail: "%hand% (%r1%)"
 hand-detail-two: "%hand% (%r1%/%r2%)"

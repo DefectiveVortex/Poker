@@ -86,8 +86,10 @@ first-time-guide:
   - "&7카드 2장을 받고, 공용 카드 5장이 3번에 나뉘어 나옵니다. 가장 좋은 5장 조합을 만드세요."
   - "&7블라인드는 &e%small_blind%/%big_blind%&7입니다. 내 차례에 채팅에서 &c폴드&7, &a체크&7/&e콜&7, &6레이즈&7를 누르세요."
   - "&7가장 좋은 핸드로, 또는 모두가 폴드할 때까지 베팅해서 팟을 가져가세요. 자세한 건 &e/poker help&7."
-turn-cards-preflop: "&7내 카드 %cards% &8· &7현재 핸드: &e%hand%"
-turn-cards: "&7내 카드 %cards% &8· &7보드 %board% &8· &7현재 핸드: &e%hand%"
+turn-line-preflop: "&7내 카드 %cards%"
+turn-line: "&7내 카드 %cards% &8· &7보드 %board%"
+# Appended to the line above only when interface.show-hand-strength is true
+turn-line-hand: " &8· &7현재 핸드: &e%hand%"
 win-title: "&6&l%amount% 획득!"
 win-subtitle: "&e%hand%(으)로 승리!"
 win-subtitle-uncontested: "&7모두 폴드했습니다"
