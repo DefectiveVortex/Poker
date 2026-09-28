@@ -81,8 +81,12 @@ public final class TableLayout {
     static final double BUTTON_ALONG = 0.55;
     /** Half the width of the dealer button disc (see WorldTableView). */
     public static final double BUTTON_HALF = 0.17;
-    /** The pot's chip stacks, (u, v) of each stack's centre: a corner of the felt no board copy uses. */
-    public static final double[][] CHIP_STACKS_UV = {{0.45, -0.45}, {0.65, -0.45}, {0.55, -0.65}};
+    /**
+     * The pot's chip stacks, (u, v) of each stack's centre: tucked into a corner of the felt, where
+     * no seat's sight line to the board or to anyone's cards passes (round 4b: beside the board
+     * they hid the middle card from the long sides).
+     */
+    public static final double[][] CHIP_STACKS_UV = {{1.33, -1.33}, {1.17, -1.33}, {1.33, -1.17}};
     /** Half the width of a chip. */
     public static final double CHIP_HALF = 0.08;
     /** The way spectators read the board: from the right-hand side of the table (v > 0), looking across. */
