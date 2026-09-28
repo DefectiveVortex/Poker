@@ -377,6 +377,176 @@ def case_tables_old():
     return verify
 
 
+# ---------------------------------------------------------------- updater (D2's modrinth-mock.py)
+MOCK_PORT = 25590
+MOCK = f'http://172.17.0.1:{MOCK_PORT}'
+mock_proc = None
+
+
+def start_mock(*args):
+    global mock_proc
+    stop_mock()
+    served = os.path.join(DATA, '..', 'Poker.jar')
+    mock_proc = subprocess.Popen(['python3', os.path.join(HERE, 'modrinth-mock.py'), '--jar', served, '--port',
+                                  str(MOCK_PORT), *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(20):
+        time.sleep(0.25)
+        if subprocess.run(['curl', '-sf', MOCK + '/mock'], capture_output=True).returncode == 0:
+            return
+    raise RuntimeError('modrinth-mock did not come up')
+
+
+def stop_mock():
+    global mock_proc
+    if mock_proc:
+        mock_proc.terminate()
+        mock_proc.wait(5)
+        mock_proc = None
+
+
+def mock(query=''):
+    import json
+    import urllib.request
+    return json.load(urllib.request.urlopen(MOCK + '/mock' + query, timeout=5))
+
+
+def mock_log():
+    import json
+    import urllib.request
+    return json.load(urllib.request.urlopen(MOCK + '/mock/log', timeout=5))
+
+
+def set_api_url(url):
+    path = os.path.join(DATA, 'config.yml')
+    text = open(path).read()
+    text = re.sub(r'(?m)^  api-url:.*\n', '', text)
+    if re.search(r'(?m)^updates:\s*$', text):
+        text = re.sub(r'(?m)^updates:\s*$', f'updates:\n  api-url: {url}', text, count=1)
+    else:
+        text += f'\nupdates:\n  api-url: {url}\n'
+    write('config.yml', text)
+
+
+UPDATE_DIR = os.path.join(DATA, '..', 'update')
+
+
+def update_files():
+    return sorted(os.listdir(UPDATE_DIR)) if os.path.isdir(UPDATE_DIR) else []
+
+
+def sha512(path):
+    import hashlib
+    return hashlib.sha512(open(path, 'rb').read()).hexdigest()
+
+
+def log_since(n):
+    return open(os.path.join(SERVER_DIR, 'logs', 'latest.log'), errors='replace').read().splitlines()[n:]
+
+
+def log_len():
+    return len(open(os.path.join(SERVER_DIR, 'logs', 'latest.log'), errors='replace').read().splitlines())
+
+
+def poker_warn_or_worse(lines):
+    return [l for l in lines if ('[Poker]' in l or 'com.vortex.poker' in l)
+            and re.search(r'/(WARN|ERROR|SEVERE)\]|Exception', l)]
+
+
+def case_update_no_network():
+    """updates.api-url points at a port nobody listens on -> nothing at INFO or above, no stack trace."""
+    shutil.rmtree(UPDATE_DIR, ignore_errors=True)
+    set_api_url('http://172.17.0.1:25599/v2')
+
+    def verify(log, before):
+        time.sleep(8)  # first check runs 5 s after enable
+        n = log_len()
+        out = strip_colours(rcon('poker update'))
+        time.sleep(4)
+        lines = log_since(0)
+        check('no Poker warnings/errors/stack traces with no network', not poker_warn_or_worse(lines),
+              ' | '.join(poker_warn_or_worse(lines)[:3]))
+        check('no Poker INFO about updates either', not any('[Poker]' in l and 'Modrinth' in l for l in lines))
+        check('poker update replies (check failed)', bool(out.strip()) and 'Missing message' not in out, out.strip()[:160])
+        check('nothing staged in plugins/update', not update_files(), str(update_files()))
+    return verify
+
+
+def case_update_flow():
+    """Against the mock: same version -> nothing; bad hash -> rejected, nothing left; good -> downloaded + verified;
+    second update -> no re-download; 404 -> quiet up to date."""
+    shutil.rmtree(UPDATE_DIR, ignore_errors=True)
+    start_mock('--version', '1.0.0')
+    set_api_url(MOCK + '/v2')
+
+    def verify(log, before):
+        served = os.path.join(DATA, '..', 'Poker.jar')
+        time.sleep(8)
+        lines = log_since(0)
+        check('startup check hit the mock', any('/project/' in r['path'] for r in mock_log()), str(mock_log())[:200])
+        check('User-Agent DefectiveVortex/Poker/1.0.0', all(r['user_agent'].startswith('DefectiveVortex/Poker/')
+                                                            for r in mock_log()),
+              str({r['user_agent'] for r in mock_log()}))
+        check('same version: no download, nothing logged', not update_files()
+              and not any('[Poker]' in l and 'Modrinth' in l for l in lines), str(update_files()))
+        out = strip_colours(rcon('poker update'))
+        check('same version: poker update says up to date', 'latest' in out.lower() or 'up to date' in out.lower(),
+              out.strip()[:160])
+
+        mock('?version=1.0.1&bad=1&status=200')
+        n = log_len()
+        out = strip_colours(rcon('poker update'))
+        time.sleep(6)
+        new = log_since(n)
+        check('bad hash: rejected in the log', any('Rejected the Poker 1.0.1 download: sha512 mismatch' in l for l in new),
+              ' | '.join(l for l in new if '[Poker]' in l)[:300])
+        check('bad hash: nothing (no jar, no .part) in plugins/update', not update_files(), str(update_files()))
+
+        mock('?bad=0')
+        n = log_len()
+        out = strip_colours(rcon('poker update'))
+        time.sleep(6)
+        new = log_since(n)
+        check('good hash: "Downloaded Poker 1.0.1 (sha512 verified)"',
+              any('Downloaded Poker 1.0.1 (sha512 verified)' in l for l in new),
+              ' | '.join(l for l in new if '[Poker]' in l)[:300])
+        staged = os.path.join(UPDATE_DIR, 'Poker.jar')
+        check('staged as plugins/update/Poker.jar, only file there', update_files() == ['Poker.jar'], str(update_files()))
+        check('staged jar sha512 matches the served jar', os.path.exists(staged) and sha512(staged) == sha512(served))
+        files_hits = sum('/files/' in r['path'] for r in mock_log())
+
+        out = strip_colours(rcon('poker update'))
+        time.sleep(4)
+        check('second update: no re-download', sum('/files/' in r['path'] for r in mock_log()) == files_hits,
+              f'{files_hits} -> {sum("/files/" in r["path"] for r in mock_log())}')
+        check('poker version shows 1.0.1 available', '1.0.1' in strip_colours(rcon('poker version')))
+
+        mock('?status=404')
+        n = log_len()
+        out = strip_colours(rcon('poker update'))
+        time.sleep(4)
+        check('404 (unpublished project): no warnings, no stack trace', not poker_warn_or_worse(log_since(n)))
+        all_lines = log_since(0)
+        check('no Poker errors or stack traces during the whole flow', not [
+            l for l in all_lines if ('com.vortex.poker' in l or '[Poker]' in l) and re.search(r'/(ERROR|SEVERE)\]|Exception', l)])
+    return verify
+
+
+def case_update_applied():
+    """After update_flow staged update/Poker.jar: a restart swaps it in and leaves plugins/update empty."""
+    staged = os.path.join(UPDATE_DIR, 'Poker.jar')
+    if not os.path.exists(staged):
+        raise RuntimeError('run updateFlow first (nothing staged)')
+    start_mock('--version', '1.0.1')
+    set_api_url(MOCK + '/v2')
+
+    def verify(log, before):
+        check('plugins/update/Poker.jar consumed on restart', not os.path.exists(staged), str(update_files()))
+        time.sleep(8)
+        check('no re-download after applying (still no update/Poker.jar)', not os.path.exists(staged),
+              str(update_files()))
+    return verify
+
+
 CASES = {
     'configMissing': case_config_missing,
     'configGarbage': case_config_garbage,
@@ -388,7 +558,11 @@ CASES = {
     'tablesOneBad': case_tables_one_bad,
     'tablesBrokenEntry': case_tables_broken_entry,
     'tablesOld': case_tables_old,
+    'updateNoNetwork': case_update_no_network,
+    'updateFlow': case_update_flow,
+    'updateApplied': case_update_applied,
 }
+# updateApplied relies on updateFlow's staged jar surviving the data-folder restore, which only touches plugins/Poker.
 
 
 def main():
@@ -419,6 +593,7 @@ def main():
                 check(f'{name} ran', False, repr(e))
             finally:
                 stop()
+                stop_mock()
     finally:
         if os.environ.get('KEEP') != '1':
             shutil.rmtree(DATA, ignore_errors=True)
