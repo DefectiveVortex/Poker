@@ -87,13 +87,14 @@ async function playUntilReady(bots, marks, act, timeout = 90000) {
 const checkOrCall = async (b, toCall) => b.cmd(toCall === 0 ? '/poker check' : '/poker call');
 
 module.exports = {
-  // #2 regression: a hand played to the river leaves no board cards once it is over.
+  // #2 regression: a hand played to the river leaves no board cards once it is over. Since round 4 every occupied
+  // side gets its own board copy (all tagged poker-board); poker-board-public is the one spectator copy (exactly n cards).
   async boardClearsBetweenHands(bots, ctx) {
     const [a, b] = bots;
     const prev = setReadyTimeout(ctx, TIMEOUT_S);
     const marks = await sitTwo(a, b);
     let maxBoard = 0;
-    const watch = setInterval(() => { maxBoard = Math.max(maxBoard, count('@e[tag=poker-board]')); }, 700);
+    const watch = setInterval(() => { maxBoard = Math.max(maxBoard, count('@e[tag=poker-board-public]')); }, 700);
     const prompted = await playUntilReady([a, b], marks, checkOrCall);
     clearInterval(watch);
     check('hand reached the ready prompt', prompted);
@@ -107,7 +108,7 @@ module.exports = {
     await a.waitFor(RX.cards, m2.get(a), 15000);
     // Check to the flop (answering turns in the background), then BotB leaves.
     playUntilReady([a, b], m2, checkOrCall, 60000).catch(() => {});
-    const flop = await until(() => count('@e[tag=poker-board]') >= 3, 60000);
+    const flop = await until(() => count('@e[tag=poker-board-public]') >= 3, 60000);
     check('flop dealt in the second hand', flop);
     b.cmd('/poker leave');
     check('board cleared after a leave ends the hand', await until(() => count('@e[tag=poker-board]') === 0, 6000),
