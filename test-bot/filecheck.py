@@ -85,6 +85,7 @@ def common_checks(log):
     bad = [l for l in log.splitlines()
            if ('com.vortex.poker' in l or '[Poker]' in l) and re.search(r'/(ERROR|SEVERE)\]|Exception', l)]
     check('no Poker errors or stack traces', not bad, ' | '.join(bad[:3]))
+    check('no tables.yml.tmp left over', not os.path.exists(os.path.join(DATA, 'tables.yml.tmp')))
     out = strip_colours(rcon('poker version'))
     check('/poker version answers', 'Poker' in out or '1.' in out, out.strip()[:120])
 
@@ -125,7 +126,8 @@ def get(d, path):
 # ---------------------------------------------------------------- cases
 # Each case: prepare() edits DATA (server stopped) and returns anything verify() needs; verify(log, before, state).
 
-GOOD_TABLES = """next-id: 8
+GOOD_TABLES = """format-version: 1
+next-id: 8
 tables:
   '5':
     world: world
@@ -168,6 +170,8 @@ def case_config_missing():
         cfg = parses('config.yml')
         check('config.yml recreated and parses', isinstance(cfg, dict), repr(cfg)[:120])
         check('config.yml has defaults (game.ready-timeout-seconds)', get(cfg, 'game.ready-timeout-seconds') is not None)
+        check('config-version: 1', get(cfg, 'config-version') == 1, str(get(cfg, 'config-version')))
+        check('log: Created config.yml from bundled defaults', 'Created config.yml from bundled defaults' in log)
         ok, out = tables_listed([5, 7])
         check('tables #5 and #7 survive', ok, out)
     return verify
@@ -181,8 +185,10 @@ def case_config_garbage():
     def verify(log, before):
         cfg = parses('config.yml')
         check('config.yml repaired and parses', isinstance(cfg, dict), repr(cfg)[:120])
-        b = backups_of('config.yml', before)
-        check('broken config.yml backed up', bool(b), 'no new config.yml* file')
+        b = [f for f in backups_of('config.yml', before) if '.broken-' in f]
+        check('broken config.yml moved to config.yml.broken-<ts>', bool(b), str(backups_of('config.yml', before)))
+        check('log: could not be read ... .broken-', any('config.yml could not be read' in l and '.broken-' in l
+                                                         for l in poker_lines(log)))
         check('backup holds the broken text', any('this is : not yaml' in open(f, errors='replace').read() for f in b))
         ok, out = tables_listed([5, 7])
         check('tables #5 and #7 survive', ok, out)
@@ -196,6 +202,7 @@ def case_config_old():
     old = old.replace('small-blind: 10', 'small-blind: 15')
     old = old.replace('menu: gui', 'menu: chat')
     assert 'turn-timeout-seconds: 47' in old and 'small-blind: 15' in old and 'menu: chat' in old
+    old += '\n# a user comment that must survive\nshow-hand-strength: true\nfoo-unknown: bar\n'
     write('config.yml', old)
     write('tables.yml', GOOD_TABLES)
 
@@ -208,7 +215,19 @@ def case_config_old():
         check('kept interface.menu chat', get(cfg, 'interface.menu') == 'chat', str(get(cfg, 'interface.menu')))
         check('new key added (game.ready-timeout-seconds)', get(cfg, 'game.ready-timeout-seconds') is not None)
         check('new key added (interface.show-hand-strength)', get(cfg, 'interface.show-hand-strength') is not None)
-        check('old config backed up', bool(backups_of('config.yml', before)))
+        check('moved top-level show-hand-strength -> interface.show-hand-strength true',
+              get(cfg, 'interface.show-hand-strength') is True and 'show-hand-strength' not in cfg,
+              str(get(cfg, 'interface.show-hand-strength')))
+        check('unknown key foo-unknown kept', get(cfg, 'foo-unknown') == 'bar')
+        check('user comment kept', 'a user comment that must survive' in open(os.path.join(DATA, 'config.yml')).read())
+        check('config-version: 1', get(cfg, 'config-version') == 1, str(get(cfg, 'config-version')))
+        check('old config copied to config.yml.pre-update.bak',
+              os.path.exists(os.path.join(DATA, 'config.yml.pre-update.bak'))
+              and 'turn-timeout-seconds: 47' in open(os.path.join(DATA, 'config.yml.pre-update.bak')).read())
+        check('log: Updated config.yml: ... Backup: config.yml.pre-update.bak',
+              any('Updated config.yml:' in l and 'config.yml.pre-update.bak' in l for l in poker_lines(log)))
+        check('log: unknown key(s) ... foo-unknown', any('unknown key(s)' in l and 'foo-unknown' in l
+                                                         for l in poker_lines(log)))
         ok, out = tables_listed([5, 7])
         check('tables #5 and #7 survive', ok, out)
     return verify
@@ -222,58 +241,139 @@ def case_messages_garbage():
     def verify(log, before):
         msgs = parses('messages.yml')
         check('messages.yml repaired and parses', isinstance(msgs, dict), repr(msgs)[:120])
-        check('broken messages.yml backed up', bool(backups_of('messages.yml', before)))
+        check('broken messages.yml moved to messages.yml.broken-<ts>',
+              any('.broken-' in f for f in backups_of('messages.yml', before)))
         ok, out = tables_listed([5, 7])
         check('tables #5 and #7 survive', ok, out)
     return verify
 
 
-def case_tables_garbage():
-    """tables.yml is not YAML -> plugin enables with no tables, the broken file is backed up (not overwritten)."""
-    write('tables.yml', 'next-id: 3\ntables:\n  \'1\': {world: world, x: 0, y: -60\n  garbage ][ :::\n')
+def case_config_bad_values():
+    """Wrong types/ranges -> file left alone (no rewrite, no backup), defaults used in memory, one warning each."""
+    path = os.path.join(DATA, 'config.yml')
+    text = open(path).read()
+    text = re.sub(r'(?m)^(  big-blind:).*$', r'\1 lots', text, count=1)
+    text = re.sub(r'(?m)^(  turn-timeout-seconds:).*$', r'\1 -5', text, count=1)
+    assert 'big-blind: lots' in text and 'turn-timeout-seconds: -5' in text
+    write('config.yml', text)
+    write('tables.yml', GOOD_TABLES)
 
     def verify(log, before):
-        b = backups_of('tables.yml', before)
-        check('broken tables.yml backed up', bool(b), 'no new tables.yml* file')
+        check('config.yml not rewritten', open(path).read() == text)
+        check('no backup made', not backups_of('config.yml', before), str(backups_of('config.yml', before)))
+        check('log: table.big-blind ... using', any('config.yml: table.big-blind' in l and 'using' in l
+                                                     for l in poker_lines(log)))
+        check('log: game.turn-timeout-seconds ... using', any('config.yml: game.turn-timeout-seconds' in l
+                                                              for l in poker_lines(log)))
+        ok, out = tables_listed([5, 7])
+        check('tables #5 and #7 survive', ok, out)
+    return verify
+
+
+def case_stats_garbage():
+    """stats.yml half-broken -> moved to .broken-<ts>, readable players recovered."""
+    write('stats.yml', "00000000-0000-0000-0000-00000000000a:\n  name: Alice\n  hands-played: 12\n  hands-won: 3\n"
+                       "00000000-0000-0000-0000-00000000000b: [broken {\n  name: Bob\n")
+    write('tables.yml', GOOD_TABLES)
+
+    def verify(log, before):
+        check('broken stats.yml moved to stats.yml.broken-<ts>',
+              any('.broken-' in f for f in backups_of('stats.yml', before)), str(backups_of('stats.yml', before)))
+        check('log: stats.yml could not be read', any('stats.yml could not be read' in l for l in poker_lines(log)))
+        check('log: recovered 1 player(s)', any('stats.yml could not be read' in l and 'recovered 1 player' in l
+                                                 for l in poker_lines(log)))
+        s = parses('stats.yml')
+        check('stats.yml parses after boot (or is absent until the next save)',
+              isinstance(s, (dict, FileNotFoundError)) or s is None, repr(s)[:120])
+    return verify
+
+
+def case_tables_garbage():
+    """tables.yml is not YAML at all -> renamed to .broken-<ts>, rewritten empty with next-id past any ID seen."""
+    write('tables.yml', "next-id: 3\ntables:\n  '12': {world: world, x: 0, y: -60\n  garbage ][ :::\n")
+
+    def verify(log, before):
+        b = [f for f in backups_of('tables.yml', before) if '.broken-' in f]
+        check('broken tables.yml moved to tables.yml.broken-<ts>', bool(b), str(backups_of('tables.yml', before)))
         check('backup holds the broken text', any('garbage ][' in open(f, errors='replace').read() for f in b))
+        check('log: tables.yml was not valid YAML', any('tables.yml was not valid YAML' in l for l in poker_lines(log)))
         t = parses('tables.yml')
-        check('tables.yml parses (or is absent) after boot',
-              t is None or isinstance(t, dict) or isinstance(t, FileNotFoundError), repr(t)[:120])
+        check('tables.yml rewritten: format-version 1, no tables', isinstance(t, dict) and t.get('format-version') == 1
+              and not t.get('tables'), repr(t)[:160])
+        check('next-id past the ID seen in the garbage (>12)', isinstance(t, dict) and (t.get('next-id') or 0) > 12,
+              repr(t)[:160])
+        out = strip_colours(rcon('poker tables'))
+        check('no tables loaded', not re.search(r'#\d+', out), out.strip()[:160])
     return verify
 
 
 def case_tables_one_bad():
-    """One broken table among good ones -> the good ones survive, the bad one is reported, a backup is kept."""
-    bad = GOOD_TABLES.replace("  '7':\n    world: world\n", "  '7':\n    world: no_such_world_xyz\n") + \
-        "  '9':\n    world: world\n    x: notanumber\n    y: -60\n    z: 60\n    seats: banana\n"
-    write('tables.yml', bad)
+    """Valid YAML with bad entries -> good ones load; bad ones stay byte-for-byte in tables.yml, with a warning each."""
+    bad_entry = "  '9':\n    world: world\n    x: notanumber\n    y: -60\n    z: 60\n    seats: 6\n    layout: 2\n"
+    text = GOOD_TABLES.replace("  '7':\n    world: world\n", "  '7':\n    world: no_such_world_xyz\n") + bad_entry
+    write('tables.yml', text)
 
     def verify(log, before):
         ok, out = tables_listed([5])
-        check('good table #5 survives', ok, out)
-        check('broken table #9 is reported in the log', any(re.search(r'\b9\b', l) for l in poker_lines(log)
-                                                            if re.search(r'WARN|skip|invalid|broken|bad', l, re.I)))
+        check('good table #5 loads', ok, out)
+        check('#7 and #9 not loaded', not re.search(r'#(7|9)\b', out), out)
+        lines = poker_lines(log)
+        check("log: table '9' not loaded: x is not a whole number",
+              any("'9'" in l and 'x is not a whole number: notanumber' in l for l in lines))
+        check("log: table #7 waits for world 'no_such_world_xyz'",
+              any('#7' in l and 'no_such_world_xyz' in l and "isn't loaded" in l for l in lines))
+        check('log: summary mentions skipped / waiting', any(re.search(r'Loaded \d+ poker table\(s\).*(skipped|waiting)', l)
+                                                             for l in lines))
+        rcon('poker settable 5 small-blind:10')  # forces a save if settable accepts console + id; harmless if not
+        cur = open(os.path.join(DATA, 'tables.yml')).read()
+        check('bad entry #9 still byte-for-byte in tables.yml', bad_entry in cur, cur[-300:])
+        check('#7 (missing world) still in tables.yml', 'no_such_world_xyz' in cur)
+    return verify
+
+
+def case_tables_broken_entry():
+    """One syntactically broken entry makes the file unparseable -> good entries salvaged, broken one only in .broken."""
+    text = GOOD_TABLES + "  '9':\n    world: world\n    x: [1, 2\n    z: {{ ::\n"
+    write('tables.yml', text)
+
+    def verify(log, before):
+        ok, out = tables_listed([5, 7])
+        check('good tables #5 and #7 salvaged', ok, out)
+        b = [f for f in backups_of('tables.yml', before) if '.broken-' in f]
+        check('original kept as tables.yml.broken-<ts>', bool(b) and open(b[0]).read() == text,
+              str(backups_of('tables.yml', before)))
+        lines = poker_lines(log)
+        check("log: table '9' not loaded, not valid YAML (lines ...), only in .broken",
+              any("'9'" in l and 'not valid YAML (lines' in l and '.broken-' in l for l in lines))
         t = parses('tables.yml')
-        check('tables.yml still parses', isinstance(t, dict), repr(t)[:120])
-        kept = t.get('tables', {}) if isinstance(t, dict) else {}
-        check('unloadable table #7 (missing world) is not deleted from tables.yml', '7' in kept or 7 in kept,
-              str(list(kept)))
+        kept = (t or {}).get('tables', {}) if isinstance(t, dict) else {}
+        check('tables.yml rewritten with #5 and #7', isinstance(t, dict) and {'5', '7'} <= {str(k) for k in kept},
+              repr(t)[:160])
     return verify
 
 
 def case_tables_old():
-    """tables.yml from round 1 (layout 1, no version) -> migrated, tables keep position and blinds."""
-    old = GOOD_TABLES.replace('    layout: 2\n', '')
+    """tables.yml from before format 1 (no format-version, no layout) -> backed up, migrated, rebuilt as 3x3."""
+    old = GOOD_TABLES.replace('format-version: 1\n', '').replace('    layout: 2\n', '')
     write('tables.yml', old)
 
     def verify(log, before):
         ok, out = tables_listed([5, 7])
         check('old tables #5 and #7 load', ok, out)
+        bk = os.path.join(DATA, 'tables.yml.format-0-backup')
+        check('tables.yml.format-0-backup holds the old file', os.path.exists(bk) and open(bk).read() == old)
+        lines = poker_lines(log)
+        check('log: upgraded format 0 to 1', any('tables.yml: upgraded format 0 to 1' in l for l in lines))
+        check('log: Rebuilt poker table #5 and #7', all(any(f'Rebuilt poker table #{i}' in l for l in lines)
+                                                         for i in (5, 7)))
         t = parses('tables.yml')
         seven = get(t, 'tables.7') if isinstance(t, dict) else None
-        check('table #7 keeps blinds 25/50 and 4 seats',
-              isinstance(seven, dict) and seven.get('small-blind') == 25 and seven.get('big-blind') == 50
-              and seven.get('seats') == 4, str(seven))
+        check('format-version 1 and layout 2 on every table', isinstance(t, dict) and t.get('format-version') == 1
+              and all((v or {}).get('layout') == 2 for v in (t.get('tables') or {}).values()), repr(t)[:200])
+        check('table #7 keeps position, facing, blinds 25/50 and 4 seats',
+              isinstance(seven, dict) and (seven.get('x'), seven.get('z'), seven.get('facing')) == (40, 20, 'EAST')
+              and seven.get('small-blind') == 25 and seven.get('big-blind') == 50 and seven.get('seats') == 4,
+              str(seven))
     return verify
 
 
@@ -281,9 +381,12 @@ CASES = {
     'configMissing': case_config_missing,
     'configGarbage': case_config_garbage,
     'configOld': case_config_old,
+    'configBadValues': case_config_bad_values,
     'messagesGarbage': case_messages_garbage,
+    'statsGarbage': case_stats_garbage,
     'tablesGarbage': case_tables_garbage,
     'tablesOneBad': case_tables_one_bad,
+    'tablesBrokenEntry': case_tables_broken_entry,
     'tablesOld': case_tables_old,
 }
 
