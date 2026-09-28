@@ -61,8 +61,9 @@ public class PokerCommand implements TabExecutor {
             case "stats" -> stats(sender, args);
             case "reload" -> {
                 if (!check(sender, ADMIN)) return true;
-                cfg().reload();
-                sender.sendMessage(cfg().getPrefixed("reload-done"));
+                int warnings = cfg().reload();
+                sender.sendMessage(warnings == 0 ? cfg().getPrefixed("reload-done")
+                    : cfg().formatPrefixed("reload-warnings", "count", warnings));
             }
             case "createtable" -> admin(sender, p -> createTable(p, args));
             case "removetable" -> admin(sender, p -> removeTable(p, args));

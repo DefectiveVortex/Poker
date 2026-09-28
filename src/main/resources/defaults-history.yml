@@ -1,0 +1,223 @@
+# Texts that earlier Poker versions shipped as defaults. Not a config file: don't edit it on a server.
+# When config.yml or a messages file still holds one of these old texts, nobody customised it, so the
+# plugin swaps in the current default (or drops it, for a key that no longer exists). A customised value is
+# never touched. Before each release, add the previous release's changed or removed defaults here.
+messages:
+- key: help-admin-lines
+  old:
+  - - '&c/poker createtable [seats:<n>] [small-blind:<n>] [big-blind:<n>] [min-buy-in:<bb>] [max-buy-in:<bb>] [max-join-distance:<n>]'
+    - '&c/poker settable <setting> <value> &7- Change the nearest table'
+    - '&c/poker removetable [id] &7- Remove the nearest table, or one by ID'
+    - '&c/poker cleanup [radius] &7- Remove leftover card displays nearby'
+    - '&c/poker reload &7- Reload config and messages'
+    - '&c/poker version &7- Plugin version and update status'
+- key: turn-cards-preflop
+  old:
+  - '&7Your cards %cards% &8· &7You have: &e%hand%'
+  removed: true
+- key: turn-cards
+  old:
+  - '&7Your cards %cards% &8· &7Board %board% &8· &7You have: &e%hand%'
+  removed: true
+- key: player-ready
+  old:
+  - '&e%player% &7is in.'
+- key: hand-started
+  old:
+  - '&6Hand #%hand% &7- &e%player% &7has the button.'
+- key: help-header
+  old:
+  - '&6Poker commands:'
+- key: help-lines
+  old:
+  - - '&e/poker join &7- Sit at the nearest table'
+    - '&e/poker leave &7- Stand up and cash out'
+    - '&e/poker fold|check|call &7- Act on your turn'
+    - '&e/poker bet <n> &7/ &e/poker raise <n> &7- Bet or raise to a total of n'
+    - '&e/poker allin &7- Move all your chips in'
+    - '&e/poker topup <n> &7- Add chips between hands'
+    - '&e/poker menu &7- Open the action menu'
+    - '&e/poker stats [player] &7- Your poker statistics'
+    - '&e/poker tables &7- List the tables'
+- key: busted
+  old:
+  - '&cYou''re out of chips. Use &e/poker topup <amount> &c(up to %max%) or &e/poker leave&c.'
+- key: player-left-busted
+  old:
+  - '&e%player% &7ran out of chips and left.'
+  removed: true
+- key: seated
+  old:
+  - '&aYou sat down in seat %seat% with &e%amount%&a.'
+- key: your-cards
+  old:
+  - '&7Your cards: &f%cards%'
+- key: you-post-sb
+  old:
+  - '&7You post the small blind: &e%amount%'
+- key: you-post-bb
+  old:
+  - '&7You post the big blind: &e%amount%'
+- key: you-win-uncontested
+  old:
+  - '&aEveryone folded. You win &e%amount%&a.'
+- key: left-cashout
+  old:
+  - '&7You left the table and cashed out &e%amount%&7.'
+- key: left-table
+  old:
+  - '&7You left the table.'
+- key: auto-left-missed-turns
+  old:
+  - '&7You were stood up after missing several turns.'
+- key: action-error-cannot-check
+  old:
+  - '&cYou can''t check: &e%to_call% &cto call.'
+- key: action-error-nothing-to-call
+  old:
+  - '&cThere''s nothing to call. You can check.'
+- key: action-error-cannot-bet
+  old:
+  - '&cYou can''t bet now; someone has already bet. Try raise.'
+- key: action-error-cannot-raise
+  old:
+  - '&cYou can''t raise now.'
+- key: action-error-amount-too-small
+  old:
+  - '&cThe minimum is &e%min%&c (a total for this round).'
+- key: settable-updated
+  old:
+  - '&aSetting &e%setting% &aset to &e%value% &aon table #%id%.'
+- key: menu-custom-lore
+  old:
+  - '&7Type &e/poker raise <amount> &7in chat'
+  removed: true
+- key: buttons.bet.hover
+  old:
+  - '&7Choose a bet amount'
+- key: buttons.raise.hover
+  old:
+  - '&7Choose a raise amount'
+messages_ko:
+- key: help-admin-lines
+  old:
+  - - '&c/poker createtable [seats:<n>] [small-blind:<n>] [big-blind:<n>] [min-buy-in:<bb>] [max-buy-in:<bb>] [max-join-distance:<n>]'
+    - '&c/poker settable <설정> <값> &7- 가장 가까운 테이블 설정 변경'
+    - '&c/poker removetable [id] &7- 가장 가까운 테이블 또는 ID로 지정한 테이블 제거'
+    - '&c/poker cleanup [반경] &7- 주변에 남은 카드 표시 제거'
+    - '&c/poker reload &7- 설정과 메시지 다시 불러오기'
+    - '&c/poker version &7- 플러그인 버전 확인'
+- key: turn-cards-preflop
+  old:
+  - '&7내 카드 %cards% &8· &7현재 핸드: &e%hand%'
+  removed: true
+- key: turn-cards
+  old:
+  - '&7내 카드 %cards% &8· &7보드 %board% &8· &7현재 핸드: &e%hand%'
+  removed: true
+- key: player-ready
+  old:
+  - '&e%player%&7님 참여.'
+- key: help-header
+  old:
+  - '&6포커 명령어:'
+- key: help-lines
+  old:
+  - - '&e/poker join &7- 가장 가까운 테이블에 앉기'
+    - '&e/poker leave &7- 일어나서 칩 정산하기'
+    - '&e/poker fold|check|call &7- 내 차례에 행동하기'
+    - '&e/poker bet <n> &7/ &e/poker raise <n> &7- 총액 n으로 베팅 또는 레이즈'
+    - '&e/poker allin &7- 칩을 전부 걸기'
+    - '&e/poker topup <n> &7- 핸드 사이에 칩 추가'
+    - '&e/poker menu &7- 행동 메뉴 열기'
+    - '&e/poker stats [플레이어] &7- 포커 통계'
+    - '&e/poker tables &7- 테이블 목록'
+- key: busted
+  old:
+  - '&c칩이 없습니다. &e/poker topup <금액>&c(최대 %max%) 또는 &e/poker leave&c를 하세요.'
+- key: player-left-busted
+  old:
+  - '&e%player%&7님이 칩을 모두 잃고 떠났습니다.'
+  removed: true
+messages_tr:
+- key: help-admin-lines
+  old:
+  - - '&c/poker createtable [seats:<n>] [small-blind:<n>] [big-blind:<n>] [min-buy-in:<bb>] [max-buy-in:<bb>] [max-join-distance:<n>]'
+    - '&c/poker settable <ayar> <değer> &7- En yakın masayı değiştir'
+    - '&c/poker removetable [id] &7- En yakın masayı ya da ID''si verilen masayı kaldır'
+    - '&c/poker cleanup [yarıçap] &7- Yakındaki artık kart görüntülerini temizle'
+    - '&c/poker reload &7- Ayarları ve mesajları yeniden yükle'
+    - '&c/poker version &7- Eklenti sürümü'
+- key: turn-cards-preflop
+  old:
+  - '&7Kartların %cards% &8· &7Elin: &e%hand%'
+  removed: true
+- key: turn-cards
+  old:
+  - '&7Kartların %cards% &8· &7Masa %board% &8· &7Elin: &e%hand%'
+  removed: true
+- key: player-ready
+  old:
+  - '&e%player% &7hazır.'
+- key: help-header
+  old:
+  - '&6Poker komutları:'
+- key: help-lines
+  old:
+  - - '&e/poker join &7- En yakın masaya otur'
+    - '&e/poker leave &7- Kalk ve fişlerini paraya çevir'
+    - '&e/poker fold|check|call &7- Sıran geldiğinde oyna'
+    - '&e/poker bet <n> &7/ &e/poker raise <n> &7- Toplam n olacak şekilde bahis yap veya artır'
+    - '&e/poker allin &7- Tüm fişlerini sür'
+    - '&e/poker topup <n> &7- Eller arasında fiş ekle'
+    - '&e/poker menu &7- Hamle menüsünü aç'
+    - '&e/poker stats [oyuncu] &7- Poker istatistiklerin'
+    - '&e/poker tables &7- Masaları listele'
+- key: busted
+  old:
+  - '&cFişiniz kalmadı. &e/poker topup <miktar> &c(en fazla %max%) ya da &e/poker leave &ckullanın.'
+- key: player-left-busted
+  old:
+  - '&e%player% &7fişleri bitince masadan ayrıldı.'
+  removed: true
+messages_ru:
+- key: help-admin-lines
+  old:
+  - - '&c/poker createtable [seats:<n>] [small-blind:<n>] [big-blind:<n>] [min-buy-in:<bb>] [max-buy-in:<bb>] [max-join-distance:<n>]'
+    - '&c/poker settable <параметр> <значение> &7- Изменить ближайший стол'
+    - '&c/poker removetable [id] &7- Убрать ближайший стол или стол по ID'
+    - '&c/poker cleanup [радиус] &7- Убрать оставшиеся карты поблизости'
+    - '&c/poker reload &7- Перезагрузить настройки и сообщения'
+    - '&c/poker version &7- Версия плагина'
+- key: turn-cards-preflop
+  old:
+  - '&7Ваши карты %cards% &8· &7У вас: &e%hand%'
+  removed: true
+- key: turn-cards
+  old:
+  - '&7Ваши карты %cards% &8· &7Стол %board% &8· &7У вас: &e%hand%'
+  removed: true
+- key: player-ready
+  old:
+  - '&e%player% &7в игре.'
+- key: help-header
+  old:
+  - '&6Команды покера:'
+- key: help-lines
+  old:
+  - - '&e/poker join &7- Сесть за ближайший стол'
+    - '&e/poker leave &7- Встать и забрать фишки'
+    - '&e/poker fold|check|call &7- Сделать ход'
+    - '&e/poker bet <n> &7/ &e/poker raise <n> &7- Ставка или рейз до суммы n'
+    - '&e/poker allin &7- Поставить все фишки'
+    - '&e/poker topup <n> &7- Докупить фишки между раздачами'
+    - '&e/poker menu &7- Открыть меню действий'
+    - '&e/poker stats [игрок] &7- Статистика покера'
+    - '&e/poker tables &7- Список столов'
+- key: busted
+  old:
+  - '&cУ вас закончились фишки. Используйте &e/poker topup <сумма> &c(до %max%) или &e/poker leave&c.'
+- key: player-left-busted
+  old:
+  - '&e%player% &7проиграл все фишки и ушёл.'
+  removed: true
