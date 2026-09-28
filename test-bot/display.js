@@ -192,6 +192,35 @@ module.exports = {
       sa.seat1.face === 2 && sa.seat1.back === 0 && sa.seat4.face === 0 && sa.seat4.back === 2, JSON.stringify(sa));
     check('BotB still sees only its own faces and BotA\'s backs',
       sb.seat4.face === 2 && sb.seat4.back === 0 && sb.seat1.face === 0 && sb.seat1.back === 2, JSON.stringify(sb));
+
+    // Check down to a showdown: the reveal flip respawns face-up cards (~4 ticks later); they must be flat too.
+    const seen = new Map([[a, Math.max(0, a.log.length - 20)], [b, Math.max(0, b.log.length - 20)]]);
+    let won = false;
+    const end = Date.now() + 90000;
+    while (!won && Date.now() < end) {
+      for (const x of [a, b]) {
+        for (let i = seen.get(x); i < x.log.length; i++) {
+          seen.set(x, i + 1);
+          if (/\bwins?\b|You win/i.test(x.log[i])) won = true;
+          const t = x.log[i].match(/Your turn.*to call: \D*([\d,]+)/);
+          if (t) x.cmd(Number(t[1].replace(/,/g, '')) === 0 ? '/poker check' : '/poker call');
+        }
+      }
+      await sleep(150);
+    }
+    check('hand checked down to a showdown', won);
+    await sleep(700); // past the reveal flip, still inside the showdown hold
+    for (const [label, sel] of [
+      ['seat 1 revealed face', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card,limit=1]'],
+      ['seat 4 revealed face', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card,limit=1]'],
+      ['board card', '@e[type=item_display,tag=poker-board,limit=1]'],
+    ]) {
+      const n = faceNormal(sel);
+      check(`${label} lies flat after the showdown`, n[1] > 0.98, n.map((c) => c.toFixed(3)).join(', '));
+    }
+    const ra = seenCards(a);
+    check('at showdown both hands are face up for BotA', ra.seat1.face === 2 && ra.seat4.face === 2 && ra.seat4.back === 0,
+      JSON.stringify(ra));
   },
 
   // 3. Removing the table removes every entity it spawned. Runs last: rebuilds the table afterwards.
