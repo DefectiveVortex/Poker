@@ -238,6 +238,7 @@ display-action-bet: "&6BET %amount%"
 display-action-raise: "&6RAISE %amount%"
 display-action-allin: "&4ALL IN %amount%"
 display-turn-marker: "&e▶ Your turn"
+# Drawn in black bold on the dealer disc: only the letter matters, colour codes are ignored
 display-button: "&f&lD"
 
 # Statistics (/poker stats)
