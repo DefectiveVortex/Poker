@@ -60,13 +60,39 @@ public final class ServerCompat {
             if (name == null || name.isBlank()) {
                 continue;
             }
-            try {
-                return Particle.valueOf(name.trim().toUpperCase(java.util.Locale.ROOT));
-            } catch (IllegalArgumentException ignored) {
-                // try the next candidate
+            String upper = name.trim().toUpperCase(java.util.Locale.ROOT);
+            for (String candidate : new String[] {upper, PARTICLE_RENAMES.get(upper)}) {
+                if (candidate == null) {
+                    continue;
+                }
+                try {
+                    return Particle.valueOf(candidate);
+                } catch (IllegalArgumentException ignored) {
+                    // try its other name, then the next candidate
+                }
             }
         }
         return null;
+    }
+
+    /** Particle enum names that changed in 1.20.5, both ways, so a config written for either era works on both. */
+    static final java.util.Map<String, String> PARTICLE_RENAMES = renames(
+        "EXPLOSION_NORMAL", "POOF", "EXPLOSION_LARGE", "EXPLOSION", "EXPLOSION_HUGE", "EXPLOSION_EMITTER",
+        "FIREWORKS_SPARK", "FIREWORK", "WATER_BUBBLE", "BUBBLE", "WATER_SPLASH", "SPLASH", "WATER_WAKE", "FISHING",
+        "SUSPENDED", "UNDERWATER", "CRIT_MAGIC", "ENCHANTED_HIT", "SMOKE_NORMAL", "SMOKE", "SMOKE_LARGE", "LARGE_SMOKE",
+        "SPELL", "EFFECT", "SPELL_INSTANT", "INSTANT_EFFECT", "SPELL_MOB", "ENTITY_EFFECT", "SPELL_WITCH", "WITCH",
+        "DRIP_WATER", "DRIPPING_WATER", "DRIP_LAVA", "DRIPPING_LAVA", "VILLAGER_ANGRY", "ANGRY_VILLAGER",
+        "VILLAGER_HAPPY", "HAPPY_VILLAGER", "TOWN_AURA", "MYCELIUM", "ENCHANTMENT_TABLE", "ENCHANT", "REDSTONE", "DUST",
+        "SNOWBALL", "ITEM_SNOWBALL", "SLIME", "ITEM_SLIME", "ITEM_CRACK", "ITEM", "BLOCK_CRACK", "BLOCK",
+        "WATER_DROP", "RAIN", "MOB_APPEARANCE", "ELDER_GUARDIAN", "TOTEM", "TOTEM_OF_UNDYING");
+
+    private static java.util.Map<String, String> renames(String... pairs) {
+        java.util.Map<String, String> map = new java.util.HashMap<>();
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            map.put(pairs[i], pairs[i + 1]);
+            map.put(pairs[i + 1], pairs[i]);
+        }
+        return java.util.Map.copyOf(map);
     }
 
     private static boolean hasMethod(Class<?> type, String name, Class<?>... parameters) {

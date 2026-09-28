@@ -133,7 +133,8 @@ public class ConfigManager {
         chipsSound = sound(log, "chips", Sound.BLOCK_CHAIN_PLACE);
         fanfareSound = sound(log, "win-fanfare", Sound.UI_TOAST_CHALLENGE_COMPLETE);
         String particle = config.getString("particles.win.type");
-        winParticle = ServerCompat.particle(particle, "HAPPY_VILLAGER", "VILLAGER_HAPPY");
+        // The configured name first (either side of the 1.20.5 renames resolves quietly), then the default.
+        winParticle = ServerCompat.particle(particle, "HAPPY_VILLAGER");
         if (particle != null && !particle.isBlank() && ServerCompat.particle(particle) == null) {
             log.warning("config.yml: particles.win.type \"" + particle + "\" is not a particle on this server; using "
                 + (winParticle == null ? "none" : winParticle.name()) + ".");
