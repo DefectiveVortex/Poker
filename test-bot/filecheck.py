@@ -289,6 +289,49 @@ def case_stats_garbage():
     return verify
 
 
+def case_messages_old():
+    """messages.yml from round 2 (c2426cc) with one custom text -> upgraded: custom kept, old defaults refreshed
+    (player-ready becomes muted), new keys added, backup made."""
+    old = sh('git', '-C', '/home/vortex/Poker', 'show', 'c2426cc:src/main/resources/messages.yml')
+    old = old.replace('prefix: "&8[&2Poker&8] &r"', 'prefix: "&8[&dMyCasino&8] &r"')
+    assert 'MyCasino' in old
+    write('messages.yml', old)
+    write('tables.yml', GOOD_TABLES)
+
+    def verify(log, before):
+        m = parses('messages.yml')
+        check('messages.yml parses', isinstance(m, dict), repr(m)[:120])
+        check('custom prefix kept', isinstance(m, dict) and 'MyCasino' in str(m.get('prefix')), str(m.get('prefix')))
+        check('player-ready upgraded to "" (muted)', isinstance(m, dict) and m.get('player-ready') == '',
+              repr(m.get('player-ready')))
+        check('new key added (reload-warnings)', isinstance(m, dict) and 'reload-warnings' in m)
+        check('config-version: 1', isinstance(m, dict) and m.get('config-version') == 1)
+        check('messages.yml.pre-update.bak holds the old file',
+              'MyCasino' in open(os.path.join(DATA, 'messages.yml.pre-update.bak')).read())
+        check('log: Updated messages.yml', any('Updated messages.yml:' in l for l in poker_lines(log)))
+    return verify
+
+
+def case_clean_boot_and_reload():
+    """Fresh install: no config warnings at all; then /poker reload clean and with one bad value."""
+    for f in os.listdir(DATA):
+        p = os.path.join(DATA, f)
+        shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+
+    def verify(log, before):
+        warn = [l for l in poker_lines(log) if re.search(r'/(WARN|ERROR|SEVERE)\]', l)]
+        check('fresh install: no Poker warnings at all', not warn, ' | '.join(warn[:3]))
+        out = strip_colours(rcon('poker reload'))
+        check('clean reload: "Poker configuration reloaded."', 'Poker configuration reloaded.' in out, out.strip()[:160])
+        path = os.path.join(DATA, 'config.yml')
+        text = re.sub(r'(?m)^(  big-blind:).*$', r'\1 lots', open(path).read(), count=1)
+        write('config.yml', text)
+        out = strip_colours(rcon('poker reload'))
+        check('bad value reload: "reloaded with 1 warning(s)"', 'reloaded with 1 warning(s)' in out, out.strip()[:160])
+        check('bad value left in the file', 'big-blind: lots' in open(path).read())
+    return verify
+
+
 def case_tables_garbage():
     """tables.yml is not YAML at all -> renamed to .broken-<ts>, rewritten empty with next-id past any ID seen."""
     write('tables.yml', "next-id: 3\ntables:\n  '12': {world: world, x: 0, y: -60\n  garbage ][ :::\n")
@@ -563,6 +606,8 @@ CASES = {
     'configBadValues': case_config_bad_values,
     'messagesGarbage': case_messages_garbage,
     'statsGarbage': case_stats_garbage,
+    'messagesOld': case_messages_old,
+    'cleanBootAndReload': case_clean_boot_and_reload,
     'tablesGarbage': case_tables_garbage,
     'tablesOneBad': case_tables_one_bad,
     'tablesBrokenEntry': case_tables_broken_entry,
