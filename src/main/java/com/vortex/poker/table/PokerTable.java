@@ -902,14 +902,10 @@ public class PokerTable implements HoldemListener {
     private void refreshSeat(int seat) {
         UUID uuid = game.getPlayer(seat);
         if (uuid == null) {
-            view.setSeatInfo(seat, "");
+            view.setSeatInfo(seat, null, null, null, null);
             return;
         }
-        StringBuilder text = new StringBuilder(names.getOrDefault(uuid, "?"))
-            .append('\n').append(money(game.getStack(seat)));
-        String action = lastAction.get(seat);
-        if (action != null && !action.isEmpty()) text.append('\n').append(action);
-        view.setSeatInfo(seat, text.toString());
+        view.setSeatInfo(seat, uuid, names.getOrDefault(uuid, "?"), money(game.getStack(seat)), lastAction.get(seat));
     }
 
     private void refreshPot() {
