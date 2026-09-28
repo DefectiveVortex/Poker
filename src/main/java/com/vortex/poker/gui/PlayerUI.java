@@ -39,17 +39,21 @@ public class PlayerUI implements Listener {
     // ---------- turn ----------
 
     /**
-     * One compact prompt per turn: your cards, the board and your best hand on one line; the bot-matched
+     * One compact prompt per turn: your cards and the board on one line (plus your best hand when
+     * interface.show-hand-strength is on); the bot-matched
      * "Your turn - to call | pot | stack" line; then the clickable actions. Also pings.
      */
     public void sendTurnPrompt(Player p, PokerTable table, ActionOptions o, List<Card> holeCards) {
         ConfigManager cfg = cfg();
         String cards = holeCards == null || holeCards.isEmpty() ? "" : cfg.formatCards(holeCards);
         List<Card> board = table.getBoard();
-        String hand = bestHand(holeCards, board);
-        String key = board.isEmpty() ? "turn-cards-preflop" : "turn-cards";
         if (!cards.isEmpty()) {
-            send(p, cfg.formatMessage(key, "cards", cards, "board", cfg.formatCards(board), "hand", hand));
+            String line = cfg.formatMessage(board.isEmpty() ? "turn-line-preflop" : "turn-line",
+                "cards", cards, "board", cfg.formatCards(board));
+            if (cfg.showHandStrength()) {
+                line += cfg.formatMessage("turn-line-hand", "hand", bestHand(holeCards, board));
+            }
+            send(p, line);
         }
         send(p, cfg.formatPrefixed("turn-prompt",
             "to_call", money(o.toCall()), "pot", money(o.potTotal()), "stack", money(o.stack())));
