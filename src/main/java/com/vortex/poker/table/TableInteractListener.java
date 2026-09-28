@@ -17,6 +17,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.event.world.WorldLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
@@ -125,6 +126,12 @@ public class TableInteractListener implements Listener {
             vehicle.remove();
         }
         refreshVisibilityLater(player);
+    }
+
+    /** Tables in a world that wasn't loaded at startup come up with it. */
+    @EventHandler
+    public void onWorldLoad(WorldLoadEvent event) {
+        tableManager.onWorldLoaded(event.getWorld());
     }
 
     @EventHandler
