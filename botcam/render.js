@@ -76,6 +76,10 @@ class Raster {
     this.translucent = [];
     this.glowMask = new Int32Array(W * H).fill(-1);
     this.glowColors = [];
+    // occlusion measurement: which tracked object owns each final pixel, and how many pixels each would cover
+    this.idBuf = new Int32Array(W * H).fill(-1);
+    this.ids = [];
+    this.cover = [];
     for (let y = 0; y < H; y++) { // sky: fog colour at the horizon, sky colour above
       for (let x = 0; x < W; x++) {
         const d = norm(add(add(this.f, mul(this.r, (x - W / 2) / this.focal)), mul(this.u, (H / 2 - y) / this.focal)));
@@ -157,8 +161,11 @@ class Raster {
         const t = (Math.min(th - 1, ty) * tw + Math.min(tw - 1, tx)) * 4;
         // the glow outline is drawn through everything, like the client's outline pass
         if (opts.glowIndex !== undefined && td[t + 3] >= 26) this.glowMask[o] = opts.glowIndex;
+        if (opts.id !== undefined && td[t + 3] >= 26) this.cover[opts.id]++;
         if (iz <= this.depth[o]) continue;
         let alpha = td[t + 3] / 255;
+        if (!blend && alpha >= 0.1) this.idBuf[o] = opts.id ?? -1;
+        else if (blend && alpha >= 0.5) this.idBuf[o] = -1; // opaque text glyphs hide what's behind
         if (!blend && alpha < 0.1) continue; // cutout
         if (!blend) alpha = 1;
         if (alpha <= 0) continue;
@@ -169,6 +176,15 @@ class Raster {
         if (!blend) this.depth[o] = iz;
       }
     }
+  }
+
+  /** Register an object whose visibility is measured; returns its id for quad opts. */
+  track(name) { this.ids.push(name); this.cover.push(0); return this.ids.length - 1; }
+
+  visibility() {
+    const seen = new Array(this.ids.length).fill(0);
+    for (const id of this.idBuf) if (id >= 0) seen[id]++;
+    return this.ids.map((name, i) => ({ name, cover: this.cover[i], visible: this.cover[i] ? seen[i] / this.cover[i] : null }));
   }
 
   finish() {
@@ -329,6 +345,7 @@ function drawBlock(R, name, props, place, neighbourFull = () => false, opts = {}
           tint: face.tintindex !== undefined ? GRASS_TINT : undefined,
           cull: true,
           glow: opts.glow,
+          id: opts.id,
         });
       }
     }
@@ -459,9 +476,10 @@ function drawCard(R, e) {
   const tex = texture(`playing_cards:item/card/${e.model}`);
   const glow = e.glow ? [(e.glow >> 16) & 255, (e.glow >> 8) & 255, e.glow & 255] : undefined;
   const zf = 8.5 / 16, zb = 7.5 / 16;
+  const id = R.track(`card ${e.model}`);
   // item/generated: front (south) shows the texture, back (north) mirrored; edges omitted (1/16 thick)
-  R.quad([[0, 1, zf], [1, 1, zf], [1, 0, zf], [0, 0, zf]].map(item), [[0, 0], [1, 0], [1, 1], [0, 1]], tex, { cull: true, shade: 1, glow });
-  R.quad([[1, 1, zb], [0, 1, zb], [0, 0, zb], [1, 0, zb]].map(item), [[0, 0], [1, 0], [1, 1], [0, 1]], tex, { cull: true, shade: 1 });
+  R.quad([[0, 1, zf], [1, 1, zf], [1, 0, zf], [0, 0, zf]].map(item), [[0, 0], [1, 0], [1, 1], [0, 1]], tex, { cull: true, shade: 1, glow, id });
+  R.quad([[1, 1, zb], [0, 1, zb], [0, 0, zb], [1, 0, zb]].map(item), [[0, 0], [1, 0], [1, 1], [0, 1]], tex, { cull: true, shade: 1, id });
 }
 
 function drawText(R, e) {
@@ -473,7 +491,9 @@ function drawText(R, e) {
 
 function drawBlockDisplay(R, e) {
   const M = displayMatrix(e, R);
-  drawBlock(R, e.block, e.props || {}, (p) => M(mul(p, 1 / 16)));
+  const key = `block ${e.block}`;
+  const id = R.ids.indexOf(key) >= 0 ? R.ids.indexOf(key) : R.track(key);
+  drawBlock(R, e.block, e.props || {}, (p) => M(mul(p, 1 / 16)), () => false, { id });
 }
 
 function box(R, center, size, yaw, color, shade = 1) { // an axis box rotated by yaw about its centre's vertical
@@ -527,7 +547,7 @@ function render(scene, outFile) {
     R.blit(img, 8, H - img.height - 8);
   }
   R.save(outFile);
-  return { missing: [...texCache.values()].filter((t) => t.missing).map((t) => t.missing) };
+  return { missing: [...texCache.values()].filter((t) => t.missing).map((t) => t.missing), visibility: R.visibility() };
 }
 
 module.exports = { render, lookDir, textImage, runs };
@@ -536,5 +556,6 @@ if (require.main === module) {
   const [scene, out] = process.argv.slice(2);
   const r = render(readJson(scene), out);
   if (r.missing.length) console.log('missing textures:', r.missing.join(', '));
+  for (const v of r.visibility) if (v.cover) console.log(`  ${v.name}: ${(100 * v.visible).toFixed(0)}% visible of ${v.cover} px`);
   console.log('wrote', out);
 }

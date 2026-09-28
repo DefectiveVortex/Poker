@@ -20,6 +20,7 @@ ln -sfn /home/vortex/Blackjack/test-server/bot/node_modules ../test-bot/node_mod
 ROUND=round4 MC_VERSION=26.1 node capture.js       # -> shots/round4/26.3/{preflop,flop,showdown}-seatN[-button]-Bot*.png
 ROUND=round4 MC_VERSION=1.20.1 node capture.js
 node render.js scenes/26.3/flop-seat1-BotA.json /tmp/x.png   # re-render a dump offline (no server)
+node check.js scenes/round4c/26.3    # per shot: cards <99% visible (occluded), visible chip/button pixels
 ```
 
 It is not a real client. It skips smooth lighting/AO, shadows, the HUD, card edge thickness and player
