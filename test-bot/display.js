@@ -53,6 +53,21 @@ function seenCards(bot) {
   return out;
 }
 
+// Which way a card's readable face points: (0,0,-1) rotated by its transformation.left_rotation [x,y,z,w] (D3).
+// Flat on the table = (0,1,0); the round-2 tilted hole cards gave y ~= 0.56.
+function faceNormal(sel) {
+  const out = rcon(`data get entity ${sel} transformation.left_rotation`);
+  const m = out.match(/\[(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?\]/);
+  if (!m) throw new Error(`no left_rotation for ${sel}: ${out}`);
+  const [x, y, z, w] = m.slice(1).map(Number);
+  const v = [0, 0, -1];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const q = [x, y, z];
+  const t = cross(q, v).map((c) => 2 * c);          // t = 2 q×v
+  const qt = cross(q, t);
+  return v.map((c, i) => c + w * t[i] + qt[i]);     // v' = v + w t + q×t
+}
+
 async function sitTwo(bots) {
   const [a, b] = bots;
   a.cmd('/poker join 500 1');
@@ -155,6 +170,58 @@ module.exports = {
       await sleep(1500);
       for (const b of extra) await b.quit();
     }
+  },
+
+  // Round 3: hole cards lie flat like the board (face up), and opponents still see only backs.
+  async holeCardsFlat(bots) {
+    const [a, b] = bots;
+    const start = new Map([[a, a.mark()], [b, b.mark()]]); // only this scenario's lines count below
+    check('a hand is dealt with 2 players', await sitTwo(bots));
+    await sleep(1000);
+    for (const [label, sel] of [
+      ['seat 1 face', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card,limit=1]'],
+      ['seat 1 back', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card-back,limit=1]'],
+      ['seat 4 face', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card,limit=1]'],
+      ['seat 4 back', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card-back,limit=1]'],
+    ]) {
+      const n = faceNormal(sel);
+      check(`${label} lies flat (face normal y > 0.98)`, n[1] > 0.98, n.map((c) => c.toFixed(3)).join(', '));
+    }
+    const sa = seenCards(a);
+    const sb = seenCards(b);
+    check('BotA still sees only its own faces and BotB\'s backs',
+      sa.seat1.face === 2 && sa.seat1.back === 0 && sa.seat4.face === 0 && sa.seat4.back === 2, JSON.stringify(sa));
+    check('BotB still sees only its own faces and BotA\'s backs',
+      sb.seat4.face === 2 && sb.seat4.back === 0 && sb.seat1.face === 0 && sb.seat1.back === 2, JSON.stringify(sb));
+
+    // Check down to a showdown: the reveal flip respawns face-up cards (~4 ticks later); they must be flat too.
+    const seen = new Map(start);
+    let won = false;
+    const end = Date.now() + 90000;
+    while (!won && Date.now() < end) {
+      for (const x of [a, b]) {
+        for (let i = seen.get(x); i < x.log.length; i++) {
+          seen.set(x, i + 1);
+          if (/\bwins?\b|You win/i.test(x.log[i])) won = true;
+          const t = x.log[i].match(/Your turn.*to call: \D*([\d,]+)/);
+          if (t) x.cmd(Number(t[1].replace(/,/g, '')) === 0 ? '/poker check' : '/poker call');
+        }
+      }
+      await sleep(150);
+    }
+    check('hand checked down to a showdown', won);
+    await sleep(700); // past the reveal flip, still inside the showdown hold
+    for (const [label, sel] of [
+      ['seat 1 revealed face', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card,limit=1]'],
+      ['seat 4 revealed face', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card,limit=1]'],
+      ['board card', '@e[type=item_display,tag=poker-board,limit=1]'],
+    ]) {
+      const n = faceNormal(sel);
+      check(`${label} lies flat after the showdown`, n[1] > 0.98, n.map((c) => c.toFixed(3)).join(', '));
+    }
+    const ra = seenCards(a);
+    check('at showdown both hands are face up for BotA', ra.seat1.face === 2 && ra.seat4.face === 2 && ra.seat4.back === 0,
+      JSON.stringify(ra));
   },
 
   // 3. Removing the table removes every entity it spawned. Runs last: rebuilds the table afterwards.

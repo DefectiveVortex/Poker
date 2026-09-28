@@ -38,6 +38,14 @@ function setReadyTimeout(ctx, seconds) {
   return before;
 }
 
+function setShowHandStrength(ctx, on) {
+  const file = path.join(ctx.serverDir, 'plugins', 'Poker', 'config.yml');
+  const text = fs.readFileSync(file, 'utf8');
+  if (!/show-hand-strength:/.test(text)) throw new Error('config.yml has no interface.show-hand-strength (old jar?)');
+  fs.writeFileSync(file, text.replace(/(show-hand-strength:\s*)(true|false)/, `$1${on}`));
+  rcon('poker reload');
+}
+
 async function until(fn, timeout) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
@@ -105,6 +113,33 @@ module.exports = {
     check('board cleared after a leave ends the hand', await until(() => count('@e[tag=poker-board]') === 0, 6000),
       `${count('@e[tag=poker-board]')} board cards left`);
     setReadyTimeout(ctx, prev);
+  },
+
+  // Round 3: the "You have: <hand>" hint is off by default and shows once interface.show-hand-strength is on.
+  async handHint(bots, ctx) {
+    const [a, b] = bots;
+    const prev = setReadyTimeout(ctx, TIMEOUT_S);
+    setShowHandStrength(ctx, false);
+    try {
+      const marks = await sitTwo(a, b);
+      const first = await playUntilReady([a, b], marks, async (x) => x.cmd('/poker fold'));
+      check('first hand played', first);
+      const lines = [a, b].flatMap((x) => x.since(marks.get(x))).filter((l) => /Your cards/.test(l));
+      check('turn line shows "Your cards"', lines.length > 0);
+      check('no "You have:" hint by default', lines.every((l) => !/You have: /.test(l)), lines.join(' | '));
+
+      setShowHandStrength(ctx, true);
+      const m2 = new Map([[a, a.mark()], [b, b.mark()]]);
+      for (const x of [a, b]) x.cmd('/poker ready');
+      const second = await playUntilReady([a, b], m2, async (x) => x.cmd('/poker fold'));
+      check('second hand played', second);
+      const hinted = [a, b].flatMap((x) => x.since(m2.get(x))).filter((l) => /Your cards .* · You have: (.+)$/.test(l));
+      check('"You have: <hand>" shown when enabled', hinted.length > 0,
+        [a, b].flatMap((x) => x.since(m2.get(x))).filter((l) => /Your cards/.test(l)).join(' | '));
+    } finally {
+      setShowHandStrength(ctx, false);
+      setReadyTimeout(ctx, prev);
+    }
   },
 
   // #3: both confirm -> the next hand deals; the confirm is acknowledged.
