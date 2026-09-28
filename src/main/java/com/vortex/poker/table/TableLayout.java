@@ -26,8 +26,9 @@ import java.util.List;
  * picks (spread evenly, still clockwise) and numbers its seats 0..n-1 in that order.
  *
  * Card placement (all in table coordinates, heights above the bottom of the felt block, whose top
- * is at 1.0): the board runs along u through the middle, flat; each seat's hole cards stand on
- * the felt edge right in front of its chair, tilted up towards the sitter's eyes.
+ * is at 1.0): the board runs along u through the middle; each seat's hole cards lie on the felt
+ * edge right in front of its chair, top edge away from the sitter. Everything lies flat
+ * (Vortex, round 3: hole cards flat like the board, not tilted up).
  */
 public final class TableLayout {
     public static final int MIN_SEATS = 2;
@@ -68,9 +69,7 @@ public final class TableLayout {
     /** Hole cards stand this far in from the chair's centre. */
     static final double HOLE_INSET = 0.75;
     /** Hole cards of a chair off the middle of its side move this far towards the middle. */
-    static final double HOLE_SIDE_SHIFT = 0.2;
-    /** Hole cards lean back this far from flat, facing the sitter. */
-    public static final double HOLE_TILT_DEGREES = 56.0;
+    static final double HOLE_SIDE_SHIFT = 0.28;
     /** A card is 12x16 px of its 16x16 texture: width 0.75, height 1.0 times the display scale. */
     public static final double CARD_WIDTH_RATIO = 0.75;
     /** Hole cards and board cards relative to display.card.scale / display.card.spacing. */
@@ -223,7 +222,7 @@ public final class TableLayout {
         return c[0] * e[0] + c[1] * e[1];
     }
 
-    /** Where a seat's hole cards stand, in table coordinates (u, v): on the felt edge before the chair. */
+    /** Where a seat's hole cards lie, in table coordinates (u, v): on the felt edge before the chair. */
     public double[] cardSpotUV(int seat) {
         double[] c = chairUV(seat), in = inwardUV(seat), e = edgeUV(seat);
         double shift = -Math.signum(sideOffset(seat)) * HOLE_SIDE_SHIFT;
@@ -249,11 +248,6 @@ public final class TableLayout {
     public double[] eyeUV(int seat) {
         double[] c = chairUV(seat), in = inwardUV(seat);
         return new double[] {c[0] + in[0] * SEAT_INSET, c[1] + in[1] * SEAT_INSET};
-    }
-
-    /** Height of a tilted hole card's centre, so its bottom edge just clears the felt top (1.0). */
-    public static double holeCardHeight(double scale) {
-        return 1.0 + scale / 2 * Math.sin(Math.toRadians(HOLE_TILT_DEGREES)) + 0.01;
     }
 
     /** Table (u, v) of board card {@code index} (0-4) with the given spacing. */
