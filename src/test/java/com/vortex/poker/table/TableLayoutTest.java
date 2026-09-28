@@ -173,6 +173,31 @@ class TableLayoutTest {
         }
     }
 
+    /** Round 4b (Botcam): the chip stacks beside the board hid its middle card from the long sides. */
+    @Test
+    void theChipsHideNoCardFromAnySeat() {
+        double top = com.vortex.poker.display.WorldTableView.CHIP_STACK_TOP;
+        for (int n = TableLayout.MIN_SEATS; n <= TableLayout.MAX_SEATS; n++) {
+            TableLayout layout = new TableLayout(null, 0, 64, 0, BlockFace.NORTH, n);
+            for (int seat = 0; seat < n; seat++) {
+                double[] eye = layout.eyeUV(seat);
+                List<double[]> targets = new ArrayList<>();
+                for (int i = 0; i < 5; i++) targets.add(layout.boardSpotUV(i, BOARD_SPACING, layout.readingUV(seat)));
+                for (int o = 0; o < n; o++) if (o != seat) targets.add(layout.cardSpotUV(o));
+                for (double[] t : targets) {
+                    for (int k = 1; k < 400; k++) {
+                        double f = k / 400.0, u = eye[0] + (t[0] - eye[0]) * f, v = eye[1] + (t[1] - eye[1]) * f;
+                        double h = TableLayout.SEATED_EYE_HEIGHT - (TableLayout.SEATED_EYE_HEIGHT - CARD_HEIGHT) * f;
+                        for (double[] c : TableLayout.CHIP_STACKS_UV) {
+                            boolean over = Math.abs(u - c[0]) <= TableLayout.CHIP_HALF && Math.abs(v - c[1]) <= TableLayout.CHIP_HALF;
+                            assertTrue(!over || h > top + 0.02, "n=" + n + " seat " + seat + " looks through the chips at " + h);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     void ownHoleCardsAreRightInFront() {
         for (int n = TableLayout.MIN_SEATS; n <= TableLayout.MAX_SEATS; n++) {

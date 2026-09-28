@@ -103,6 +103,8 @@ public class WorldTableView implements TableView {
     private static final int CHIP_SWEEP_TICKS = 8;
     private static final Material[] CHIP_COLOURS = {Material.RED_CONCRETE, Material.BLACK_CONCRETE, Material.WHITE_CONCRETE};
     private static final int MAX_CHIPS_PER_STACK = 6;
+    /** Height of the top of a full chip stack above the table block. */
+    public static final double CHIP_STACK_TOP = 1.0 + (MAX_CHIPS_PER_STACK - 1) * CHIP_PITCH + CHIP_THICKNESS;
 
     /** Per-kind tags, next to CardDisplayCleaner.DISPLAY_TAG, so tests can count by kind. */
     public static final String CARD_TAG = "poker-card";
