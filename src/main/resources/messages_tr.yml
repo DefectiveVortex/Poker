@@ -3,6 +3,9 @@
 # Translated from the English file; corrections are welcome.
 # Colour codes: &0-&9, &a-&f, &l bold, &n underline, &o italic, &r reset. %placeholders% are filled in by the plugin.
 
+# Dosya biçimi sürümü; Poker güncellenince bu dosyayı yükseltmek için kullanılır. Değiştirmeyin.
+config-version: 1
+
 prefix: "&8[&2Poker&8] &r"
 no-permission: "&cBunu yapmak için yetkiniz yok!"
 player-only-command: "&cBu komut yalnızca oyuncular tarafından kullanılabilir!"
@@ -10,6 +13,7 @@ unknown-command: "&cBilinmeyen alt komut. &e/poker help &cyazın."
 currency-format: "$%amount%"
 economy-unavailable: "&cEkonomi şu anda kullanılamıyor. Vault ve bir ekonomi eklentisi kurulu mu?"
 reload-done: "&aPoker ayarları yeniden yüklendi."
+reload-warnings: "&ePoker ayarları yeniden yüklendi, %count% uyarı var: konsola bakın."
 invalid-amount: "&cGeçersiz miktar: '%value%'"
 invalid-seat: "&cGeçersiz koltuk '%value%': 1-%max% arasında seçin."
 amount-prompt: "&7Sohbete bir miktar yazın (&e%min%&7 - &e%max%&7) ya da &eiptal&7."
@@ -41,6 +45,7 @@ help-admin-lines:
   - "&c/poker cleanup [yarıçap] &7- Yakındaki artık kart görüntülerini temizle"
   - "&c/poker reload &7- Ayarları ve mesajları yeniden yükle"
   - "&c/poker version &7- Eklenti sürümü"
+  - "&c/poker update &7- Modrinth'te yeni sürümü şimdi denetle ve indir"
 
 table-created: "&aPoker masası #%id% oluşturuldu! &7(%seats% koltuk, kör bahisler &e%small_blind%/%big_blind%&7, giriş &e%min_buy_in%&7-&e%max_buy_in%&7)"
 table-overlaps: "&cMasa buraya kurulamaz: başka bir masa ya da bloklarla çakışıyor."
@@ -230,6 +235,15 @@ version-current: "&7Poker sürümü &e%version%"
 version-update-available: "&eYeni bir sürüm var: &a%latest% &7(sizdeki %version%)"
 version-up-to-date: "&aEn son sürümü kullanıyorsunuz."
 version-check-failed: "&7Şu anda güncellemeler kontrol edilemedi."
+version-latest: "&7Modrinth'teki en son sürüm (%channel%): &e%latest%"
+version-update-downloaded: "&aPoker %latest% indirildi; uygulamak için sunucuyu yeniden başlatın."
+version-download-failed: "&cPoker %latest% indirilemedi. &7Konsola bakın."
+version-not-checked: "&7Henüz güncelleme denetimi yapılmadı."
+version-checks-disabled: "&7Güncelleme denetimi kapalı (config.yml içinde updates.check)."
+version-checking: "&7Modrinth'te güncellemeler denetleniyor..."
+version-admin-notice: "&eYeni bir Poker sürümü çıktı: &a%latest% &7(sizdeki %version%) "
+version-open-button: "&b[Modrinth'te gör]"
+version-open-hover: "&7Modrinth sayfasını aç"
 
 action-prompt: "&7Hamleniz: "
 buttons:

@@ -51,17 +51,27 @@ public final class SafeYaml {
      * pass {@link LoadResult#brokenCopy()} to {@link #salvage(File)} to recover what's still readable.
      */
     public static LoadResult load(File file, Logger log) {
+        return load(file, log, true);
+    }
+
+    /** {@link #load(File, Logger)}; with {@code report} false the caller writes its own log lines. */
+    public static LoadResult load(File file, Logger log, boolean report) {
         if (!file.exists()) {
-            log.info(file.getName() + " not found; starting with an empty one.");
+            if (report) {
+                log.info(file.getName() + " not found; starting with an empty one.");
+            }
             return new LoadResult(new YamlConfiguration(), Status.MISSING, null, null);
         }
         String text;
         try {
-            text = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            // Lenient like Bukkit's own loader: bytes that aren't UTF-8 become U+FFFD instead of failing the read.
+            text = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            // Unreadable (permissions, bad UTF-8 or a failing card): leave it where it is.
+            // Unreadable (permissions or a failing card): leave it where it is.
             String error = oneLine(e.toString());
-            log.warning(file.getName() + " could not be read (" + error + "). Leaving it untouched.");
+            if (report) {
+                log.warning(file.getName() + " could not be read (" + error + "). Leaving it untouched.");
+            }
             return new LoadResult(new YamlConfiguration(), Status.BROKEN, null, error);
         }
         YamlConfiguration yaml = new YamlConfiguration();
@@ -71,7 +81,9 @@ public final class SafeYaml {
         } catch (InvalidConfigurationException e) {
             String error = oneLine(e.getMessage());
             File copy = moveAside(file, log);
-            if (copy == null) {
+            if (!report) {
+                // the caller logs
+            } else if (copy == null) {
                 log.warning(file.getName() + " is not valid YAML (" + error + ") and could not be moved aside.");
             } else {
                 log.warning(file.getName() + " is not valid YAML (" + error + "). Moved it to " + copy.getName() + ".");
@@ -126,7 +138,7 @@ public final class SafeYaml {
     /** {@link #salvage(String)} on a file's contents; empty if the file can't be read at all. */
     public static YamlConfiguration salvage(File file) {
         try {
-            return salvage(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+            return salvage(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
         } catch (IOException e) {
             return new YamlConfiguration();
         }

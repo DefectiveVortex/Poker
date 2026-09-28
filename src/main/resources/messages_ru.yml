@@ -3,6 +3,9 @@
 # Translated from the English file; corrections are welcome.
 # Colour codes: &0-&9, &a-&f, &l bold, &n underline, &o italic, &r reset. %placeholders% are filled in by the plugin.
 
+# Версия формата файла: нужна, чтобы обновлять его вместе с плагином. Не меняйте её.
+config-version: 1
+
 prefix: "&8[&2Покер&8] &r"
 no-permission: "&cУ вас нет прав на это!"
 player-only-command: "&cЭту команду могут использовать только игроки!"
@@ -10,6 +13,7 @@ unknown-command: "&cНеизвестная подкоманда. Использ�
 currency-format: "$%amount%"
 economy-unavailable: "&cЭкономика сейчас недоступна. Установлены ли Vault и плагин экономики?"
 reload-done: "&aНастройки покера перезагружены."
+reload-warnings: "&eНастройки покера перезагружены, предупреждений: %count%. Смотрите консоль."
 invalid-amount: "&cНеверная сумма: '%value%'"
 invalid-seat: "&cНеверное место '%value%': выберите 1-%max%."
 amount-prompt: "&7Введите сумму в чат (&e%min%&7 - &e%max%&7) или &eотмена&7."
@@ -41,6 +45,7 @@ help-admin-lines:
   - "&c/poker cleanup [радиус] &7- Убрать оставшиеся карты поблизости"
   - "&c/poker reload &7- Перезагрузить настройки и сообщения"
   - "&c/poker version &7- Версия плагина"
+  - "&c/poker update &7- Проверить Modrinth и скачать новую версию"
 
 table-created: "&aПокерный стол #%id% создан! &7(мест: %seats%, блайнды &e%small_blind%/%big_blind%&7, бай-ин &e%min_buy_in%&7-&e%max_buy_in%&7)"
 table-overlaps: "&cЗдесь нельзя поставить стол: он пересекается с другим столом или блоками."
@@ -230,6 +235,15 @@ version-current: "&7Версия покера &e%version%"
 version-update-available: "&eДоступна новая версия: &a%latest% &7(у вас %version%)"
 version-up-to-date: "&aУ вас последняя версия."
 version-check-failed: "&7Сейчас не удалось проверить обновления."
+version-latest: "&7Последняя версия на Modrinth (%channel%): &e%latest%"
+version-update-downloaded: "&aПокер %latest% скачан; перезапустите сервер, чтобы установить."
+version-download-failed: "&cНе удалось скачать Покер %latest%. &7Смотрите консоль."
+version-not-checked: "&7Проверка обновлений ещё не выполнялась."
+version-checks-disabled: "&7Проверка обновлений выключена (updates.check в config.yml)."
+version-checking: "&7Проверяем обновления на Modrinth..."
+version-admin-notice: "&eВышла новая версия покера: &a%latest% &7(у вас %version%) "
+version-open-button: "&b[Открыть на Modrinth]"
+version-open-hover: "&7Открыть страницу на Modrinth"
 
 action-prompt: "&7Ваш ход: "
 buttons:

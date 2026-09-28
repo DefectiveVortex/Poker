@@ -3,20 +3,16 @@
 # pick one with `language:` in config.yml. Keys missing from a translation fall back to this text.
 # Color codes: &0-&9, &a-&f for colors, &l (bold), &n (underline), &o (italic), &m (strikethrough), &r (reset)
 # Placeholders are marked with %placeholder_name%
-# Set a message to "" to stop it being sent at all (e.g. to cut chat spam).
-
-# File format version, used to upgrade this file when Poker updates. Don't change it.
-config-version: 1
 
 # Core messages
-prefix: "&8[&2Poker&8] &r"
+# our casino branding
+prefix: "&8[&bCasino&8] &r"
 no-permission: "&cYou don't have permission to do that!"
 player-only-command: "&cThis command can only be used by players!"
 unknown-command: "&cUnknown subcommand. Use &e/poker help&c."
 currency-format: "$%amount%"
 economy-unavailable: "&cThe economy isn't available right now. Is Vault and an economy plugin installed?"
 reload-done: "&aPoker configuration reloaded."
-reload-warnings: "&ePoker configuration reloaded with %count% warning(s). See the console."
 invalid-amount: "&cInvalid amount: '%value%'"
 invalid-seat: "&cInvalid seat '%value%': pick 1-%max%."
 amount-prompt: "&7Type an amount in chat (&e%min%&7 - &e%max%&7), or &ecancel&7."
@@ -48,7 +44,6 @@ help-admin-lines:
   - "&c/poker cleanup [radius] &7- Remove leftover card displays nearby"
   - "&c/poker reload &7- Reload config and messages"
   - "&c/poker version &7- Plugin version and update status"
-  - "&c/poker update &7- Check Modrinth now and download a newer version"
 
 # Table management
 table-created: "&aPoker table #%id% created! &7(%seats% seats, blinds &e%small_blind%/%big_blind%&7, buy-in &e%min_buy_in%&7-&e%max_buy_in%&7)"
@@ -101,10 +96,8 @@ first-time-guide:
   - "&7Win the pot with the best hand, or by betting until everyone else folds. &e/poker help &7for more."
 
 # Your turn (the cards line comes first; the "Your turn - to call" line must keep its shape for the test bots)
-turn-line-preflop: "&7Your cards %cards%"
-turn-line: "&7Your cards %cards% &8· &7Board %board%"
-# Appended to the line above only when interface.show-hand-strength is true
-turn-line-hand: " &8· &7You have: &e%hand%"
+turn-cards-preflop: "&7Your cards %cards% &8· &7You have: &e%hand%"
+turn-cards: "&7Cards %cards% | board %board%"
 # Other languages describe hands with these (English uses its own wording, e.g. "Two Pair, Kings and Sevens")
 hand-detail: "%hand% (%r1%)"
 hand-detail-two: "%hand% (%r1%/%r2%)"
@@ -124,7 +117,7 @@ ready-waiting: "&7%ready%/%total% ready..."
 ready-reminder: "&e%seconds%s left to click &a[Play again]&e."
 ready-timeout-removed: "&cYou didn't confirm in time and were cashed out &e%amount%&c."
 ready-countdown: "&eNext hand: click &a[Play again] &e- &c%seconds%s"
-player-ready: ""  # muted: ready-waiting already tells confirmed players the count
+player-ready: "&e%player% &7is in."
 player-left-ready-timeout: "&e%player% &7didn't confirm and left the table."
 
 # Your turn
@@ -211,7 +204,7 @@ turn-timer: "&eYour turn: &c%seconds%s"
 player-joined: "&e%player% &7sat down with &e%amount%&7."
 player-left: "&e%player% &7left the table."
 player-left-inactive: "&e%player% &7was stood up for missing turns."
-hand-started: "&8» &7Hand #%hand% &8· &7button: &e%player%"
+hand-started: "&6Hand #%hand% &7- &e%player% &7has the button."
 action-fold: "&e%player% &7folds."
 action-check: "&e%player% &7checks."
 action-call: "&e%player% &7calls &e%amount%&7."
@@ -243,7 +236,6 @@ display-action-bet: "&6BET %amount%"
 display-action-raise: "&6RAISE %amount%"
 display-action-allin: "&4ALL IN %amount%"
 display-turn-marker: "&e▶ Your turn"
-# Drawn in black bold on the dealer disc: only the letter matters, colour codes are ignored
 display-button: "&f&lD"
 
 # Statistics (/poker stats)
@@ -263,15 +255,6 @@ version-current: "&7Poker version &e%version%"
 version-update-available: "&eA new version is available: &a%latest% &7(you have %version%)"
 version-up-to-date: "&aYou're running the latest version."
 version-check-failed: "&7Couldn't check for updates right now."
-version-latest: "&7Latest on Modrinth (%channel%): &e%latest%"
-version-update-downloaded: "&aPoker %latest% downloaded; restart the server to apply."
-version-download-failed: "&cCouldn't download Poker %latest%. &7See the console."
-version-not-checked: "&7No update check has run yet."
-version-checks-disabled: "&7Update checks are off (updates.check in config.yml)."
-version-checking: "&7Checking Modrinth for updates..."
-version-admin-notice: "&eA new Poker version is out: &a%latest% &7(you have %version%) "
-version-open-button: "&b[View on Modrinth]"
-version-open-hover: "&7Open the Modrinth page"
 
 # Clickable chat buttons
 action-prompt: "&7Your move: "

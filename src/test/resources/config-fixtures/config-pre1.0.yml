@@ -1,24 +1,17 @@
-# Poker configuration. Apply changes with /poker reload.
-# Poker checks this file on every start and reload: missing settings are added (your values and comments are
-# kept, the previous file is saved as config.yml.pre-update.bak), and a value that doesn't make sense is
-# reported in the console and replaced by its default until you fix it. A file that can't be read at all is
-# moved to config.yml.broken-<date> and rebuilt, keeping every setting that could still be read.
-
-# File format version, used to upgrade this file when Poker updates. Don't change it.
-config-version: 1
-
+# Poker config from the first test build (main e8630b0), with an admin's edits.
 # Language for player-facing messages: en, ko (Korean), tr (Turkish), ru (Russian).
 # English is read from messages.yml, other languages from messages_<code>.yml, which is
 # created the first time you pick it. To add your own language, drop a messages_<code>.yml
 # into this folder and set its code here. Apply with /poker reload.
-language: en
+language: tr
 
 # Defaults for new tables. Each table keeps its own copy: change one with /poker settable,
 # or pass these when creating it, e.g. /poker createtable seats:8 big-blind:50
 table:
   max-seats: 6            # 2-8 seats
-  small-blind: 10
-  big-blind: 20
+  # raised for the casino floor
+  small-blind: 25
+  big-blind: 50
   # Buy-in range in big blinds: with a 20 big blind, 40-100 BB means 800-2000
   min-buy-in-bb: 40
   max-buy-in-bb: 100
@@ -32,35 +25,16 @@ table:
   chair-material: DARK_OAK_STAIRS
 
 game:
-  turn-timeout-seconds: 30     # Then the player checks if they can, otherwise folds (0 = no limit)
+  turn-timeout-seconds: 45     # Then the player checks if they can, otherwise folds (0 = no limit)
   max-missed-turns: 2          # Timed-out hands in a row before a player is stood up and cashed out (0 = never)
   next-hand-delay-seconds: 5   # Pause between hands
   showdown-display-seconds: 4  # How long revealed cards stay up after a showdown
-  # After each hand every seated player confirms "play again" (a chat button or /poker ready) within this many
-  # seconds, or is stood up and cashed out. Sitting down counts as confirming. 0 = deal on automatically.
-  ready-timeout-seconds: 30
 
 # How players act: gui (chest menus) or chat (clickable buttons only)
 interface:
   menu: gui
   # Also send clickable [Fold] [Check] [Call] [Raise] buttons in chat on each turn
   chat-buttons: true
-  # A big "You win $1,200 / with a Flush!" title for the winner
-  win-title: true
-  # A short how-to the first time a player ever sits down
-  first-time-guide: true
-  # Tell players what hand they currently hold ("You have: Two Pair, Kings") in the turn prompt.
-  # Off by default so players read their own hand; showdowns and the win title always name the winning hand.
-  show-hand-strength: false
-
-# Cards written in chat, the action bar and hover text: colour per suit, then the colour that follows a card
-cards:
-  colors:
-    hearts: "&c"
-    diamonds: "&c"
-    spades: "&8"
-    clubs: "&8"
-  after: "&f"
 
 display:
   card:
@@ -98,14 +72,6 @@ sounds:
     sound: ENTITY_PLAYER_LEVELUP
     volume: 1.0
     pitch: 1.0
-  chips:          # bet, call, raise and all-in, heard around the table
-    sound: BLOCK_CHAIN_PLACE
-    volume: 0.8
-    pitch: 1.6
-  win-fanfare:    # played to the winner along with "win"
-    sound: UI_TOAST_CHALLENGE_COMPLETE
-    volume: 0.7
-    pitch: 1.0
   fold:
     sound: ITEM_BOOK_PAGE_TURN
     volume: 1.0
@@ -121,11 +87,6 @@ performance:
   # Seconds between background saves of player statistics (stats.yml)
   stats-save-interval: 60
 
-updates:
-  # Look for new Poker versions on Modrinth at startup and every interval-hours
-  check: true
-  # Download a newer version into plugins/update/ so it installs on the next restart
-  auto-download: true
-  # release, beta or alpha. beta also takes releases; alpha takes everything
-  channel: release
-  interval-hours: 12
+# added by hand from a forum post
+show-hand-strength: true
+my-server-note: "ask Vortex before changing blinds"

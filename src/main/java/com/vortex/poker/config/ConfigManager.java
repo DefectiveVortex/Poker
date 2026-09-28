@@ -12,21 +12,23 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
  * Centralized configuration: config.yml plus the messages file for the configured language.
- * Constructing it creates and tops up both files from the bundled defaults.
+ * Constructing it (and /poker reload) creates, repairs, upgrades and checks both files.
  */
 public class ConfigManager {
     public static final int MIN_SEATS = 2;
@@ -57,51 +59,66 @@ public class ConfigManager {
         reload();
     }
 
-    /** Re-read config.yml and the messages file (picks up a changed language too). */
-    public void reload() {
-        plugin.saveDefaultConfig();
-        ConfigFileUpdater.update(plugin, "config.yml", new File(plugin.getDataFolder(), "config.yml"));
-        plugin.reloadConfig();
-        this.config = plugin.getConfig();
-        this.messagesConfig = loadMessages();
-        loadAndValidateConfig();
+    /**
+     * Check, repair and re-read config.yml and the messages file (picks up a changed language too). Runs at
+     * startup and on /poker reload: see {@link ConfigFileUpdater} for what's repaired and how.
+     *
+     * @return how many warnings the check logged (0 when everything was fine)
+     */
+    public int reload() {
+        CountingLogger log = new CountingLogger(plugin.getLogger());
+        String bundled = ConfigFileUpdater.bundledText(plugin, "config.yml");
+        YamlConfiguration loaded = ConfigFileUpdater.update(new File(plugin.getDataFolder(), "config.yml"), bundled, log,
+            ConfigMigrations.forFile("config.yml"), ConfigMigrations.optionalKeys("config.yml")).config();
+        if (bundled != null) {
+            ConfigValidator.validateConfig(loaded, parse(bundled), log);
+        }
+        this.config = loaded;
+        this.messagesConfig = loadMessages(log);
+        loadAndValidateConfig(log);
+        return log.problems();
     }
 
     /**
      * English lives in messages.yml, other languages in messages_<code>.yml. Bundled translations are
-     * copied out on first use and topped up with new keys on update; a server can add its own language by
+     * copied out on first use and repaired and topped up like config.yml; a server can add its own language by
      * dropping in a messages_<code>.yml. Anything a translation lacks falls back to the bundled English.
      */
-    private FileConfiguration loadMessages() {
+    private FileConfiguration loadMessages(Logger log) {
         String language = getLanguage();
         String fileName = language.isEmpty() || language.equals("en") ? "messages.yml" : "messages_" + language + ".yml";
         File messagesFile = new File(plugin.getDataFolder(), fileName);
+        String englishText = ConfigFileUpdater.bundledText(plugin, "messages.yml");
+        YamlConfiguration english = englishText == null ? new YamlConfiguration() : parse(englishText);
 
-        YamlConfiguration messages;
-        if (plugin.getResource(fileName) != null) {
-            messages = ConfigFileUpdater.update(plugin, fileName, messagesFile);
-        } else if (messagesFile.exists()) {
-            messages = YamlConfiguration.loadConfiguration(messagesFile);
-        } else {
-            plugin.getLogger().warning("No messages file for language '" + language + "' (expected " + fileName
+        String bundled = ConfigFileUpdater.bundledText(plugin, fileName);
+        if (bundled == null && !messagesFile.exists()) {
+            log.warning("No messages file for language '" + language + "' (expected " + fileName
                 + "). Bundled languages: en, ko, tr, ru. Falling back to English.");
-            messages = ConfigFileUpdater.update(plugin, "messages.yml", new File(plugin.getDataFolder(), "messages.yml"));
+            fileName = "messages.yml";
+            messagesFile = new File(plugin.getDataFolder(), fileName);
+            bundled = englishText;
         }
-
-        try (InputStream stream = plugin.getResource("messages.yml")) {
-            if (stream != null) {
-                messages.setDefaults(YamlConfiguration.loadConfiguration(
-                    new InputStreamReader(stream, StandardCharsets.UTF_8)));
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not read bundled English messages: " + e.getMessage());
-        }
+        YamlConfiguration messages = ConfigFileUpdater.update(messagesFile, bundled, log,
+            bundled == null ? List.of() : ConfigMigrations.forFile(fileName), Set.of()).config();
+        ConfigValidator.validateTypes(messages, bundled == null ? english : parse(bundled), fileName, log);
+        messages.setDefaults(english);
         return messages;
     }
 
-    private void loadAndValidateConfig() {
-        tableMaterial = material(config.getString("table.material"), Material.GREEN_TERRACOTTA);
-        chairMaterial = material(config.getString("table.chair-material"), Material.DARK_OAK_STAIRS);
+    private static YamlConfiguration parse(String text) {
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            yaml.loadFromString(text);
+        } catch (InvalidConfigurationException e) {
+            // the bundled file is broken: ConfigFileUpdater has already logged it
+        }
+        return yaml;
+    }
+
+    private void loadAndValidateConfig(Logger log) {
+        tableMaterial = material(log, "table.material", Material.GREEN_TERRACOTTA);
+        chairMaterial = material(log, "table.chair-material", Material.DARK_OAK_STAIRS);
         maxSeats = Math.max(MIN_SEATS, Math.min(MAX_SEATS, config.getInt("table.max-seats", 6)));
 
         bigBlind = Math.max(2, config.getLong("table.big-blind", 20));
@@ -109,17 +126,47 @@ public class ConfigManager {
         minBuyInBB = Math.max(1, config.getInt("table.min-buy-in-bb", 40));
         maxBuyInBB = Math.max(minBuyInBB, config.getInt("table.max-buy-in-bb", 100));
 
-        cardDealSound = resolveSound(config.getString("sounds.card-deal.sound"), Sound.BLOCK_WOODEN_BUTTON_CLICK_ON);
-        turnSound = resolveSound(config.getString("sounds.your-turn.sound"), Sound.BLOCK_NOTE_BLOCK_PLING);
-        winSound = resolveSound(config.getString("sounds.win.sound"), Sound.ENTITY_PLAYER_LEVELUP);
-        foldSound = resolveSound(config.getString("sounds.fold.sound"), Sound.ITEM_BOOK_PAGE_TURN);
-        chipsSound = resolveSound(config.getString("sounds.chips.sound"), Sound.BLOCK_CHAIN_PLACE);
-        fanfareSound = resolveSound(config.getString("sounds.win-fanfare.sound"), Sound.UI_TOAST_CHALLENGE_COMPLETE);
-        winParticle = ServerCompat.particle(config.getString("particles.win.type"), "HAPPY_VILLAGER", "VILLAGER_HAPPY");
+        cardDealSound = sound(log, "card-deal", Sound.BLOCK_WOODEN_BUTTON_CLICK_ON);
+        turnSound = sound(log, "your-turn", Sound.BLOCK_NOTE_BLOCK_PLING);
+        winSound = sound(log, "win", Sound.ENTITY_PLAYER_LEVELUP);
+        foldSound = sound(log, "fold", Sound.ITEM_BOOK_PAGE_TURN);
+        chipsSound = sound(log, "chips", Sound.BLOCK_CHAIN_PLACE);
+        fanfareSound = sound(log, "win-fanfare", Sound.UI_TOAST_CHALLENGE_COMPLETE);
+        String particle = config.getString("particles.win.type");
+        winParticle = ServerCompat.particle(particle, "HAPPY_VILLAGER", "VILLAGER_HAPPY");
+        if (particle != null && !particle.isBlank() && ServerCompat.particle(particle) == null) {
+            log.warning("config.yml: particles.win.type \"" + particle + "\" is not a particle on this server; using "
+                + (winParticle == null ? "none" : winParticle.name()) + ".");
+        }
+    }
+
+    private Sound sound(Logger log, String name, Sound fallback) {
+        String configured = config.getString("sounds." + name + ".sound");
+        Sound s = resolveSound(configured, null);
+        if (s == null) {
+            if (configured != null && !configured.isBlank()) {
+                log.warning("config.yml: sounds." + name + ".sound \"" + configured
+                    + "\" is not a sound on this server; using the default.");
+            }
+            return fallback;
+        }
+        return s;
+    }
+
+    private Material material(Logger log, String path, Material fallback) {
+        String name = config.getString(path);
+        Material m = material(name, null);
+        if (m == null) {
+            if (name != null && !name.isBlank()) {
+                log.warning("config.yml: " + path + " \"" + name + "\" is not a block; using " + fallback.name() + ".");
+            }
+            return fallback;
+        }
+        return m;
     }
 
     private static Material material(String name, Material fallback) {
-        if (name == null) return fallback;
+        if (name == null || name.isBlank()) return fallback;
         Material m = Material.matchMaterial(name.trim());
         return m != null && m.isBlock() ? m : fallback;
     }
@@ -352,5 +399,30 @@ public class ConfigManager {
 
     public String getButtonHover(String buttonName) {
         return color(messagesConfig.getString("buttons." + buttonName + ".hover", "Click to " + buttonName));
+    }
+
+    /** Forwards to the plugin's logger and counts warnings, so /poker reload can say whether anything was wrong. */
+    private static final class CountingLogger extends Logger {
+        private final Logger target;
+        private int problems;
+
+        CountingLogger(Logger target) {
+            super(target.getName(), null);
+            this.target = target;
+            setUseParentHandlers(false);
+            setLevel(Level.ALL);
+        }
+
+        @Override
+        public void log(LogRecord record) {
+            if (record.getLevel().intValue() >= Level.WARNING.intValue()) {
+                problems++;
+            }
+            target.log(record);
+        }
+
+        int problems() {
+            return problems;
+        }
     }
 }
