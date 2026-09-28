@@ -42,4 +42,25 @@ class CardRotationTest {
                 q.transform(new Vector3f(0, 0, -1)), "face at yaw " + yaw);
         }
     }
+
+    @Test
+    void theButtonLetterLiesFaceUpAndReadsFromTheButtonSeat() {
+        // a text display's front is local +Z, its top local +Y
+        for (int yaw = -180; yaw < 180; yaw += 90) {
+            Quaternionf q = WorldTableView.flatTextRotation(yaw);
+            double r = Math.toRadians(yaw);
+            assertVec(0, 1, 0, q.transform(new Vector3f(0, 0, 1)), "front at yaw " + yaw);
+            assertVec(-Math.sin(r), 0, Math.cos(r), q.transform(new Vector3f(0, 1, 0)), "top at yaw " + yaw);
+            // and not mirrored: the text's right is the reader's right (top x up, seen from above)
+            assertVec(-Math.cos(r), 0, -Math.sin(r), q.transform(new Vector3f(1, 0, 0)), "right at yaw " + yaw);
+        }
+    }
+
+    @Test
+    void sideKeysAreDistinct() {
+        double[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        java.util.Set<Integer> keys = new java.util.HashSet<>();
+        for (double[] d : dirs) keys.add(WorldTableView.sideKey(d));
+        assertEquals(4, keys.size());
+    }
 }

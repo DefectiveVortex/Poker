@@ -77,9 +77,16 @@ public final class TableLayout {
     public static final double HOLE_SPACING_FACTOR = 1.07;
     public static final double BOARD_SCALE_FACTOR = 1.3;
     public static final double BOARD_SPACING_FACTOR = 1.3;
-    /** How far the button sits in from the hole cards, and along the edge. */
-    static final double BUTTON_INSET = 0.25;
-    static final double BUTTON_ALONG = 0.35;
+    /** The button sits level with the hole cards, this far along the edge from their middle. */
+    static final double BUTTON_ALONG = 0.55;
+    /** Half the width of the dealer button disc (see WorldTableView). */
+    public static final double BUTTON_HALF = 0.17;
+    /** The pot's chip stacks, (u, v) of each stack's centre: a corner of the felt no board copy uses. */
+    public static final double[][] CHIP_STACKS_UV = {{0.45, -0.45}, {0.65, -0.45}, {0.55, -0.65}};
+    /** Half the width of a chip. */
+    public static final double CHIP_HALF = 0.08;
+    /** The way spectators read the board: from the right-hand side of the table (v > 0), looking across. */
+    public static final double[] SPECTATOR_READING_UV = {0, -1};
 
     private final World world;
     private final int x, y, z;
@@ -232,16 +239,16 @@ public final class TableLayout {
         };
     }
 
-    /** Where the dealer button goes for a seat: in from its cards, towards the middle of its side. */
+    /**
+     * Where the dealer button goes for a seat: beside its cards on the felt edge, towards the middle
+     * of its side, well clear of every board copy in the middle.
+     */
     public double[] buttonSpotUV(int seat) {
-        double[] spot = cardSpotUV(seat), in = inwardUV(seat), e = edgeUV(seat);
+        double[] spot = cardSpotUV(seat), e = edgeUV(seat);
         double side = sideOffset(seat);
         // off-middle chairs: towards the middle of the side; middle chairs: the sitter's right
         double along = side != 0 ? -Math.signum(side) * BUTTON_ALONG : -BUTTON_ALONG;
-        return new double[] {
-            spot[0] + in[0] * BUTTON_INSET + e[0] * along,
-            spot[1] + in[1] * BUTTON_INSET + e[1] * along,
-        };
+        return new double[] {spot[0] + e[0] * along, spot[1] + e[1] * along};
     }
 
     /** Where a seated player's eyes are, in table coordinates (u, v); height is SEATED_EYE_HEIGHT. */
@@ -250,9 +257,25 @@ public final class TableLayout {
         return new double[] {c[0] + in[0] * SEAT_INSET, c[1] + in[1] * SEAT_INSET};
     }
 
-    /** Table (u, v) of board card {@code index} (0-4) with the given spacing. */
+    /** Table (u, v) of board card {@code index} (0-4) in the spectators' copy. */
     public double[] boardSpotUV(int index, double spacing) {
-        return new double[] {(index - 2) * spacing, 0};
+        return boardSpotUV(index, spacing, SPECTATOR_READING_UV);
+    }
+
+    /**
+     * Table (u, v) of board card {@code index} (0-4) in the copy read looking along {@code reading}
+     * (a unit direction along u or v): a row across the reader's view through the middle of the
+     * table, the first card on their left.
+     */
+    public double[] boardSpotUV(int index, double spacing, double[] reading) {
+        double offset = (index - 2) * spacing;
+        // the reader's left is the reading direction turned 90 degrees anticlockwise, as in edgeUV
+        return new double[] {-reading[1] * offset, reading[0] * offset};
+    }
+
+    /** The way a seat reads its own copy of the board: square to its side, the way the sitter faces. */
+    public double[] readingUV(int seat) {
+        return inwardUV(seat);
     }
 
     /** Yaw a player on this seat faces (towards the table). */
@@ -267,11 +290,16 @@ public final class TableLayout {
     }
 
     /**
-     * Yaw the top edge of the board cards points to. They lie along u and read upright from the
-     * right-hand side of the table (v > 0), sideways from the ends.
+     * Yaw the top edge of the spectators' board copy points to. It lies along u and reads upright
+     * from the right-hand side of the table (v > 0); seated players get a copy square to them.
      */
     public float getBoardTopYaw() {
-        return yawOf(facing, 0, -1);
+        return getBoardTopYaw(SPECTATOR_READING_UV);
+    }
+
+    /** Yaw the top edge of a board copy read looking along {@code reading} points to. */
+    public float getBoardTopYaw(double[] reading) {
+        return yawOf(facing, reading[0], reading[1]);
     }
 
     /** The chair block for a seat. */

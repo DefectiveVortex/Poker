@@ -8,6 +8,7 @@ import com.vortex.poker.table.CardModels;
 import com.vortex.poker.table.TableLayout;
 import com.vortex.poker.util.ServerCompat;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -19,6 +20,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
+import org.bukkit.scoreboard.ScoreboardManager;
+import org.bukkit.scoreboard.Team;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
@@ -27,6 +30,7 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,25 +46,55 @@ import java.util.UUID;
  * forgets per-player hiding when a player relogs or changes world, so {@link #refreshVisibility}
  * puts it back.
  *
+ * The board is dealt once per side of the table that has someone sitting at it, each copy a row
+ * square to that side, so nobody reads it end-on or upside down. A seated player is sent only
+ * their side's copy; everyone else sees the spectators' copy (read from the v > 0 side).
+ *
+ * Over each seat hangs a small label stack above the player's own name tag: their stack, and their
+ * last action for a few seconds. The name is only added when no name tag shows (they aren't
+ * sitting in the chair, or a team hides it), so it never appears twice.
+ *
  * Cards slide in from the middle of the table using display interpolation (client-side, so it
  * costs the server two metadata packets per card). Every entity is non-persistent and tagged, so
  * nothing survives a crash or an unloaded chunk and CardDisplayCleaner recognises leftovers.
  */
 public class WorldTableView implements TableView {
-    /** Text heights above the bottom of the table block. */
-    private static final double SEAT_INFO_HEIGHT = 2.45;
-    private static final double TURN_MARKER_HEIGHT = 2.9;
+    /**
+     * Label heights above the bottom of the table block, over the seated player's head. A player's
+     * name tag spans about 1.97-2.2 there (eyes at 1.52, the tag's top 0.68 above them); each label
+     * below grows upwards from its height.
+     */
+    private static final double NAME_HEIGHT = 1.98;
+    private static final double STACK_HEIGHT = 2.28;
+    private static final double ACTION_HEIGHT = 2.55;
+    private static final double TURN_MARKER_HEIGHT = 2.8;
+    private static final float NAME_SCALE = 0.9f;
+    private static final float STACK_SCALE = 0.8f;
+    private static final float ACTION_SCALE = 0.7f;
+    /** A new action stays up this long. */
+    private static final int ACTION_SHOW_TICKS = 80;
     private static final double POT_INFO_HEIGHT = 1.6;
-    private static final double BUTTON_HEIGHT = 1.12;
+    /** Top of the felt. */
+    private static final double FELT_TOP = 1.0;
+    /**
+     * Dealer button: a yellow-rimmed white disc (each layer two squares, one turned 45 degrees, so
+     * it reads as round) with a bold black letter lying on it.
+     */
+    private static final double BUTTON_RIM = TableLayout.BUTTON_HALF * Math.sqrt(2);
+    private static final double BUTTON_FACE = BUTTON_RIM * 0.8;
+    private static final double BUTTON_RIM_THICKNESS = 0.02;
+    private static final double BUTTON_FACE_THICKNESS = 0.03;
+    private static final float BUTTON_LETTER_SCALE = 0.75f;
+    /** Height of the letter's middle above a text display's origin, in font pixels (line box 10, cap 7). */
+    private static final double LETTER_MIDDLE_PX = 5.5;
     /** Where dealt cards slide in from: above the middle of the table. */
     private static final double DECK_HEIGHT = 1.35;
     private static final int SLIDE_TICKS = 6;
     private static final int FLIP_TICKS = 3;
     /** Chip stack beside the board: up to three stacks, chips 0.16 wide and 0.035 thick. */
-    private static final double CHIP_SIZE = 0.16;
     private static final double CHIP_THICKNESS = 0.035;
     private static final double CHIP_PITCH = 0.04;
-    private static final double CHIPS_V = -0.5;
+    private static final int CHIP_SWEEP_TICKS = 8;
     private static final Material[] CHIP_COLOURS = {Material.RED_CONCRETE, Material.BLACK_CONCRETE, Material.WHITE_CONCRETE};
     private static final int MAX_CHIPS_PER_STACK = 6;
 
@@ -68,6 +102,8 @@ public class WorldTableView implements TableView {
     public static final String CARD_TAG = "poker-card";
     public static final String BACK_TAG = "poker-card-back";
     public static final String BOARD_TAG = "poker-board";
+    /** Also on the spectators' board copy, the one anybody not seated sees. */
+    public static final String BOARD_PUBLIC_TAG = "poker-board-public";
     public static final String SEAT_CARD_TAG_PREFIX = "poker-seat-card-";
     public static final String TEXT_TAG = "poker-text";
     public static final String BUTTON_TAG = "poker-button";
@@ -85,15 +121,18 @@ public class WorldTableView implements TableView {
 
     private final Map<Integer, SeatCards> seatCards = new HashMap<>();
     private final List<Card> boardCards = new ArrayList<>();
-    private final List<ItemDisplay> boardDisplays = new ArrayList<>();
-    private final Map<Integer, TextDisplay> seatInfo = new HashMap<>();
+    /** Board copies by the side their readers sit on (see sideKey). */
+    private final Map<Integer, List<ItemDisplay>> boardCopies = new HashMap<>();
+    /** Who sits where, as far as the game has told us (hole cards, seat labels). */
+    private final Map<Integer, UUID> seatPlayers = new HashMap<>();
+    private final Map<Integer, SeatLabel> labels = new HashMap<>();
     private final List<BlockDisplay> chips = new ArrayList<>();
+    private final List<Display> buttonParts = new ArrayList<>();
     /** Displays on their way out (flipping away); removed when the animation ends or the hand clears. */
     private final List<Entity> leaving = new ArrayList<>();
     private final Set<UUID> owned = new HashSet<>();
     private TextDisplay potInfo;
     private TextDisplay turnMarker;
-    private TextDisplay button;
     private int chipCount;
     private boolean destroyed;
 
@@ -105,6 +144,21 @@ public class WorldTableView implements TableView {
         boolean revealed;
         boolean winner;
     }
+
+    /** The texts over one seat, bottom to top: name (only without a name tag), stack, last action. */
+    private static final class SeatLabel {
+        UUID player;
+        String name = "", stack = "", action = "";
+        TextDisplay nameText, stackText, actionText;
+        /** Bumped for every new action, so an old action's timer doesn't hide a newer one. */
+        int actionSerial;
+        boolean winner;
+    }
+
+    /** Spectators' side: see TableLayout.SPECTATOR_READING_UV. */
+    private static final int SPECTATOR_SIDE = sideKey(TableLayout.SPECTATOR_READING_UV);
+    /** A seat label for a player we couldn't identify (the text-only setSeatInfo with an unknown name). */
+    private static final UUID NOBODY_KNOWN = new UUID(0L, 0L);
 
     public WorldTableView(PokerPlugin plugin, TableLayout layout, int tableId) {
         this.plugin = plugin;
@@ -166,7 +220,9 @@ public class WorldTableView implements TableView {
         seatCards.put(seat, sc);
         if (owner != null) {
             applyVisibility(owner, sc);
+            setSeatPlayer(seat, owner.getUniqueId());
         }
+        refreshNames();
         playSound(holeCardLocation(seat, 0, 1, 1.0), DEAL_SOUND, 0.6f, 1.2f);
     }
 
@@ -176,7 +232,7 @@ public class WorldTableView implements TableView {
         boolean extendsCurrent = next.size() >= boardCards.size()
             && next.subList(0, boardCards.size()).equals(boardCards);
         if (!extendsCurrent) {
-            removeAll(boardDisplays);
+            removeBoard();
             boardCards.clear();
         }
         if (!config().areCardDisplaysEnabled()) {
@@ -184,18 +240,15 @@ public class WorldTableView implements TableView {
             boardCards.addAll(next);
             return;
         }
-        double spacing = config().getCardSpacing() * TableLayout.BOARD_SPACING_FACTOR;
-        for (int i = boardCards.size(); i < next.size(); i++) {
-            double[] uv = layout.boardSpotUV(i, spacing);
-            Location loc = layout.at(uv[0], uv[1], config().getCardHeight());
-            ItemDisplay d = spawnCard(loc, next.get(i), layout.getBoardTopYaw(), 0, boardScale(), true, BOARD_TAG);
-            if (d != null) boardDisplays.add(d);
-        }
-        if (next.size() > boardCards.size()) {
-            playSound(layout.at(0, 0, config().getCardHeight()), DEAL_SOUND, 0.6f, 1.2f);
-        }
+        int dealtBefore = boardCards.size();
         boardCards.clear();
         boardCards.addAll(next);
+        for (int side : boardSides()) {
+            dealBoardCopy(side, dealtBefore);
+        }
+        if (next.size() > dealtBefore) {
+            playSound(layout.at(0, 0, config().getCardHeight()), DEAL_SOUND, 0.6f, 1.2f);
+        }
     }
 
     /**
@@ -244,33 +297,77 @@ public class WorldTableView implements TableView {
 
     @Override
     public void setButton(int seat) {
-        remove(button);
-        button = null;
+        removeAll(buttonParts);
         if (!validSeat(seat) || destroyed) return;
         double[] spot = layout.buttonSpotUV(seat);
-        button = spawnText(layout.at(spot[0], spot[1], BUTTON_HEIGHT), config().getMessage("display-button"), 0.4f);
-        if (button != null) {
-            button.addScoreboardTag(BUTTON_TAG);
-            button.setBackgroundColor(Color.fromARGB(230, 255, 255, 255));
+        Location centre = layout.at(spot[0], spot[1], FELT_TOP);
+        World world = centre.getWorld();
+        if (world == null || !world.isChunkLoaded(centre.getBlockX() >> 4, centre.getBlockZ() >> 4)) return;
+        for (int turn = 0; turn < 2; turn++) {
+            float angle = (float) (turn * Math.PI / 4);
+            buttonParts.add(spawnSlab(centre, Material.YELLOW_CONCRETE, BUTTON_RIM, BUTTON_RIM_THICKNESS, angle, BUTTON_TAG));
+            buttonParts.add(spawnSlab(centre, Material.WHITE_CONCRETE, BUTTON_FACE, BUTTON_FACE_THICKNESS, angle, BUTTON_TAG));
         }
+        // the letter lies on the disc, reading upright from the button seat
+        float topYaw = layout.getCardTopYaw(seat);
+        double r = Math.toRadians(topYaw), lift = LETTER_MIDDLE_PX * 0.025 * BUTTON_LETTER_SCALE;
+        Location at = centre.clone().add(Math.sin(r) * lift, BUTTON_FACE_THICKNESS + 0.004, -Math.cos(r) * lift);
+        TextDisplay letter = spawnText(at, ChatColor.BLACK + "" + ChatColor.BOLD + buttonLetter(), BUTTON_LETTER_SCALE);
+        if (letter != null) {
+            letter.setBillboard(Display.Billboard.FIXED);
+            letter.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+            letter.setTransformation(new Transformation(new Vector3f(), flatTextRotation(topYaw),
+                new Vector3f(BUTTON_LETTER_SCALE, BUTTON_LETTER_SCALE, BUTTON_LETTER_SCALE), new Quaternionf()));
+            letter.addScoreboardTag(BUTTON_TAG);
+            buttonParts.add(letter);
+        }
+    }
+
+    /** The button's letter from messages.yml ("D"), without its colours: it is always black on white. */
+    private String buttonLetter() {
+        String text = config().getMessage("display-button");
+        text = text == null ? "" : ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', text)).trim();
+        return text.isEmpty() ? "D" : text;
     }
 
     @Override
     public void setSeatInfo(int seat, String text) {
+        if (text == null || text.isEmpty()) {
+            setSeatInfo(seat, null, null, null, null);
+            return;
+        }
+        String[] lines = text.split("\n", 3);
+        String name = lines[0];
+        Player player = Bukkit.getPlayerExact(ChatColor.stripColor(name).trim());
+        UUID uuid = player != null ? player.getUniqueId() : seatPlayers.getOrDefault(seat, NOBODY_KNOWN);
+        setSeatInfo(seat, uuid, name, lines.length > 1 ? lines[1] : "", lines.length > 2 ? lines[2] : "");
+    }
+
+    @Override
+    public void setSeatInfo(int seat, UUID player, String name, String stack, String action) {
         if (!validSeat(seat)) return;
-        TextDisplay current = seatInfo.get(seat);
-        if (text == null || text.isEmpty() || !config().areTextDisplaysEnabled()) {
-            remove(current);
-            seatInfo.remove(seat);
+        if (player == null) {
+            setSeatPlayer(seat, null);
+            removeLabel(seat);
             return;
         }
-        if (current != null && current.isValid()) {
-            current.setText(text);
+        setSeatPlayer(seat, NOBODY_KNOWN.equals(player) ? null : player);
+        if (!config().areTextDisplaysEnabled()) {
+            removeLabel(seat);
             return;
         }
-        Location chair = layout.getChairLocation(seat);
-        TextDisplay d = spawnText(chair.add(0, SEAT_INFO_HEIGHT, 0), text, 0.7f);
-        if (d != null) seatInfo.put(seat, d);
+        SeatLabel label = labels.computeIfAbsent(seat, s -> new SeatLabel());
+        label.player = NOBODY_KNOWN.equals(player) ? null : player;
+        label.name = orEmpty(name);
+        label.stack = orEmpty(stack);
+        placeName(seat, label);
+        label.stackText = putText(label.stackText, seat, STACK_HEIGHT, label.stack, STACK_SCALE);
+        if (label.stackText != null) label.stackText.setBackgroundColor(label.winner ? WINNER_BACKGROUND : TEXT_BACKGROUND);
+        String act = orEmpty(action);
+        if (!act.equals(label.action)) {
+            label.action = act;
+            showAction(seat, label);
+        }
     }
 
     @Override
@@ -302,15 +399,10 @@ public class WorldTableView implements TableView {
         World world = layout.getWorld();
         for (int i = 0; i < count; i++) {
             int stack = i / MAX_CHIPS_PER_STACK, level = i % MAX_CHIPS_PER_STACK;
-            Location loc = layout.at((stack - 1) * 0.2, CHIPS_V, 1.0 + level * CHIP_PITCH);
+            double[] uv = TableLayout.CHIP_STACKS_UV[stack];
+            Location loc = layout.at(uv[0], uv[1], FELT_TOP + level * CHIP_PITCH);
             if (world == null || !world.isChunkLoaded(loc.getBlockX() >> 4, loc.getBlockZ() >> 4)) return;
-            BlockDisplay chip = world.spawn(loc, BlockDisplay.class);
-            chip.setBlock(CHIP_COLOURS[stack].createBlockData());
-            chip.setTransformation(new Transformation(
-                new Vector3f((float) (-CHIP_SIZE / 2), 0f, (float) (-CHIP_SIZE / 2)), new Quaternionf(),
-                new Vector3f((float) CHIP_SIZE, (float) CHIP_THICKNESS, (float) CHIP_SIZE), new Quaternionf()));
-            tag(chip, CHIP_TAG);
-            chips.add(chip);
+            chips.add(spawnSlab(loc, CHIP_COLOURS[stack], TableLayout.CHIP_HALF * 2, CHIP_THICKNESS, 0f, CHIP_TAG));
         }
     }
 
@@ -319,8 +411,8 @@ public class WorldTableView implements TableView {
         remove(turnMarker);
         turnMarker = null;
         if (!validSeat(seat) || !config().areTextDisplaysEnabled()) return;
-        Location chair = layout.getChairLocation(seat);
-        turnMarker = spawnText(chair.add(0, TURN_MARKER_HEIGHT, 0), config().getMessage("display-turn-marker"), 0.8f);
+        refreshNames();
+        turnMarker = spawnText(labelLocation(seat, TURN_MARKER_HEIGHT), config().getMessage("display-turn-marker"), 0.8f);
         if (turnMarker != null) {
             turnMarker.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
             turnMarker.setShadowed(true);
@@ -340,9 +432,10 @@ public class WorldTableView implements TableView {
                 sc.faces.forEach(this::glow); // a revealed seat still flipping glows as its faces appear
                 sc.backs.forEach(this::glow); // a fold-win stays face down but still lights up
             }
-            TextDisplay info = seatInfo.get(seat);
-            if (info != null && info.isValid()) {
-                info.setBackgroundColor(WINNER_BACKGROUND);
+            SeatLabel label = labels.get(seat);
+            if (label != null) {
+                label.winner = true;
+                if (label.stackText != null && label.stackText.isValid()) label.stackText.setBackgroundColor(WINNER_BACKGROUND);
             }
             Particle sparkle = ServerCompat.particle("HAPPY_VILLAGER", "VILLAGER_HAPPY");
             if (world != null && sparkle != null) {
@@ -351,10 +444,15 @@ public class WorldTableView implements TableView {
             }
         }
         Particle burst = ServerCompat.particle("TOTEM_OF_UNDYING", "TOTEM");
+        double[] pot = TableLayout.CHIP_STACKS_UV[0];
         if (world != null && burst != null) {
-            world.spawnParticle(burst, layout.at(0, CHIPS_V, 1.2), 30, 0.2, 0.1, 0.2, 0.25);
+            world.spawnParticle(burst, layout.at(pot[0], pot[1], 1.2), 30, 0.2, 0.1, 0.2, 0.25);
         }
         playSound(layout.at(0, 0, 1.2), "minecraft:entity.player.levelup", 0.5f, 1.6f);
+        // the pot has been paid: its chips slide over to the winners and the pot label goes
+        sweepChipsTo(seats);
+        remove(potInfo);
+        potInfo = null;
     }
 
     @Override
@@ -362,13 +460,14 @@ public class WorldTableView implements TableView {
         for (Integer seat : new ArrayList<>(seatCards.keySet())) {
             clearSeat(seat);
         }
-        removeAll(boardDisplays);
+        removeBoard();
         boardCards.clear();
         removeAll(leaving);
         removeAll(chips);
         chipCount = 0;
-        for (TextDisplay info : seatInfo.values()) {
-            if (info.isValid()) info.setBackgroundColor(TEXT_BACKGROUND);
+        for (SeatLabel label : labels.values()) {
+            label.winner = false;
+            if (label.stackText != null && label.stackText.isValid()) label.stackText.setBackgroundColor(TEXT_BACKGROUND);
         }
         highlightTurn(-1);
     }
@@ -377,11 +476,11 @@ public class WorldTableView implements TableView {
     public void destroy() {
         clearHand();
         remove(potInfo);
-        remove(button);
-        seatInfo.values().forEach(this::remove);
-        seatInfo.clear();
+        removeAll(buttonParts);
+        for (Integer seat : new ArrayList<>(labels.keySet())) {
+            removeLabel(seat);
+        }
         potInfo = null;
-        button = null;
         owned.clear();
         destroyed = true;
         purgeTagged();
@@ -399,6 +498,187 @@ public class WorldTableView implements TableView {
                 applyVisibility(viewer, sc);
             }
         }
+        applyBoardVisibility(viewer);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Board copies
+    // ---------------------------------------------------------------------------------------
+
+    /** 0..3 for a reading direction along +u, -u, +v, -v. */
+    static int sideKey(double[] reading) {
+        return reading[0] != 0 ? (reading[0] > 0 ? 0 : 1) : (reading[1] > 0 ? 2 : 3);
+    }
+
+    private static double[] readingOf(int side) {
+        return switch (side) {
+            case 0 -> new double[] {1, 0};
+            case 1 -> new double[] {-1, 0};
+            case 2 -> new double[] {0, 1};
+            default -> new double[] {0, -1};
+        };
+    }
+
+    /** The spectators' side, and every side somebody sits on. */
+    private Set<Integer> boardSides() {
+        Set<Integer> sides = new LinkedHashSet<>();
+        sides.add(SPECTATOR_SIDE);
+        for (int seat : seatPlayers.keySet()) {
+            if (validSeat(seat)) sides.add(sideKey(layout.readingUV(seat)));
+        }
+        return sides;
+    }
+
+    private int sideOf(UUID player) {
+        for (Map.Entry<Integer, UUID> e : seatPlayers.entrySet()) {
+            if (e.getValue().equals(player) && validSeat(e.getKey())) return sideKey(layout.readingUV(e.getKey()));
+        }
+        return SPECTATOR_SIDE;
+    }
+
+    /**
+     * Bring one side's copy up to the current board. Cards from {@code slideFrom} on are new this
+     * street and glide in; a copy made late (someone sat down mid-hand) just appears.
+     */
+    private void dealBoardCopy(int side, int slideFrom) {
+        if (boardCards.isEmpty() || destroyed) return;
+        List<ItemDisplay> copy = boardCopies.computeIfAbsent(side, k -> new ArrayList<>());
+        double spacing = config().getCardSpacing() * TableLayout.BOARD_SPACING_FACTOR;
+        double[] reading = readingOf(side);
+        boolean spawned = false;
+        for (int i = copy.size(); i < boardCards.size(); i++) {
+            double[] uv = layout.boardSpotUV(i, spacing, reading);
+            Location loc = layout.at(uv[0], uv[1], config().getCardHeight());
+            ItemDisplay d = spawnCard(loc, boardCards.get(i), layout.getBoardTopYaw(reading), 0, boardScale(),
+                i >= slideFrom, BOARD_TAG);
+            if (d == null) return; // chunk unloaded: try again on the next street
+            if (side == SPECTATOR_SIDE) {
+                d.addScoreboardTag(BOARD_PUBLIC_TAG);
+            } else {
+                d.setVisibleByDefault(false);
+            }
+            copy.add(d);
+            spawned = true;
+        }
+        if (!spawned) return;
+        for (UUID uuid : seatPlayers.values()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) applyBoardVisibility(p);
+        }
+    }
+
+    /** A seated player sees their side's copy and no other; anybody else, the spectators' copy. */
+    private void applyBoardVisibility(Player viewer) {
+        int mine = sideOf(viewer.getUniqueId());
+        for (Map.Entry<Integer, List<ItemDisplay>> e : boardCopies.entrySet()) {
+            boolean see = e.getKey() == mine;
+            for (ItemDisplay d : e.getValue()) {
+                if (!d.isValid()) continue;
+                if (see) {
+                    viewer.showEntity(plugin, d);
+                } else {
+                    viewer.hideEntity(plugin, d);
+                }
+            }
+        }
+    }
+
+    private void removeBoard() {
+        for (List<ItemDisplay> copy : boardCopies.values()) {
+            removeAll(copy);
+        }
+        boardCopies.clear();
+    }
+
+    /** Record who sits on a seat (null: nobody), and move them and whoever was there onto the right board copy. */
+    private void setSeatPlayer(int seat, UUID player) {
+        UUID before = player == null ? seatPlayers.remove(seat) : seatPlayers.put(seat, player);
+        if (player == null ? before == null : player.equals(before)) return;
+        if (player != null) {
+            // one seat per player: a stale entry from an earlier seat would pick the wrong copy
+            seatPlayers.entrySet().removeIf(e -> e.getKey() != seat && e.getValue().equals(player));
+            dealBoardCopy(sideKey(layout.readingUV(seat)), boardCards.size());
+        }
+        for (UUID uuid : new UUID[] {before, player}) {
+            Player p = uuid == null ? null : Bukkit.getPlayer(uuid);
+            if (p != null) applyBoardVisibility(p);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Seat labels
+    // ---------------------------------------------------------------------------------------
+
+    /** Over the seated player's head (their eyes' u, v), at a height above the table block. */
+    private Location labelLocation(int seat, double height) {
+        double[] eye = layout.eyeUV(seat);
+        return layout.at(eye[0], eye[1], height);
+    }
+
+    /** The name, only while the player's own name tag doesn't show it. */
+    private void placeName(int seat, SeatLabel label) {
+        String name = nameTagShows(seat, label) ? "" : label.name;
+        label.nameText = putText(label.nameText, seat, NAME_HEIGHT, name, NAME_SCALE);
+    }
+
+    /**
+     * Whether other players see this seat's player's vanilla name tag right over the seat: they are
+     * online, sitting in this chair, and no scoreboard team hides it.
+     */
+    private boolean nameTagShows(int seat, SeatLabel label) {
+        Player p = label.player == null ? null : Bukkit.getPlayer(label.player);
+        if (p == null || p.getWorld() != layout.getWorld() || !p.isInsideVehicle()) return false;
+        Location eye = labelLocation(seat, 0);
+        double dx = p.getLocation().getX() - eye.getX(), dz = p.getLocation().getZ() - eye.getZ();
+        if (dx * dx + dz * dz > 1.0) return false;
+        ScoreboardManager boards = Bukkit.getScoreboardManager();
+        Team team = boards == null ? null : boards.getMainScoreboard().getEntryTeam(p.getName());
+        return team == null || team.getOption(Team.Option.NAME_TAG_VISIBILITY) == Team.OptionStatus.ALWAYS;
+    }
+
+    /** Players sit down and stand up between label updates: re-check whose name tag shows. */
+    private void refreshNames() {
+        for (Map.Entry<Integer, SeatLabel> e : labels.entrySet()) {
+            placeName(e.getKey(), e.getValue());
+        }
+    }
+
+    /** Show a new action for a few seconds. */
+    private void showAction(int seat, SeatLabel label) {
+        int serial = ++label.actionSerial;
+        label.actionText = putText(label.actionText, seat, ACTION_HEIGHT, label.action, ACTION_SCALE);
+        if (label.actionText == null) return;
+        later(ACTION_SHOW_TICKS, () -> {
+            if (labels.get(seat) != label || label.actionSerial != serial) return;
+            remove(label.actionText);
+            label.actionText = null;
+        });
+    }
+
+    /** Update one text of a seat label in place, spawn it, or (empty text) remove it. */
+    private TextDisplay putText(TextDisplay current, int seat, double height, String text, float scale) {
+        if (text == null || text.isEmpty()) {
+            remove(current);
+            return null;
+        }
+        if (current != null && current.isValid()) {
+            current.setText(text);
+            return current;
+        }
+        return spawnText(labelLocation(seat, height), text, scale);
+    }
+
+    private void removeLabel(int seat) {
+        SeatLabel label = labels.remove(seat);
+        if (label == null) return;
+        label.actionSerial++;
+        remove(label.nameText);
+        remove(label.stackText);
+        remove(label.actionText);
+    }
+
+    private static String orEmpty(String s) {
+        return s == null ? "" : s;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -509,6 +789,69 @@ public class WorldTableView implements TableView {
             display.setGlowColorOverride(WINNER_GLOW);
             display.setGlowing(true);
         }
+    }
+
+    /**
+     * A flat text lying on the table, reading upright for someone it points away from: its top
+     * edge along {@code topYaw}. A text display's front faces +Z with its top along +Y; lay it face
+     * up (+Z to +Y, +Y to -Z), then turn it about the vertical so -Z becomes (-sin r, 0, cos r).
+     */
+    static Quaternionf flatTextRotation(float topYaw) {
+        double r = Math.toRadians(topYaw);
+        return new Quaternionf().rotationY((float) (Math.PI - r)).rotateX((float) (-Math.PI / 2));
+    }
+
+    /**
+     * A square slab of a block, {@code size} wide and {@code thickness} tall, centred on
+     * {@code centre} and turned {@code angle} radians about the vertical.
+     */
+    private BlockDisplay spawnSlab(Location centre, Material block, double size, double thickness, float angle, String kind) {
+        Location loc = centre.clone();
+        loc.setYaw(0f);
+        loc.setPitch(0f);
+        BlockDisplay slab = loc.getWorld().spawn(loc, BlockDisplay.class);
+        slab.setBlock(block.createBlockData());
+        Quaternionf turn = new Quaternionf().rotationY(angle);
+        Vector3f corner = turn.transform(new Vector3f((float) size / 2, 0f, (float) size / 2)).negate();
+        slab.setTransformation(new Transformation(corner, turn,
+            new Vector3f((float) size, (float) thickness, (float) size), new Quaternionf()));
+        tag(slab, kind);
+        return slab;
+    }
+
+    /** The pot goes to the winners: each chip stack slides onto a winner's cards, then vanishes. */
+    private void sweepChipsTo(List<Integer> seats) {
+        List<BlockDisplay> going = new ArrayList<>(chips);
+        chips.clear();
+        chipCount = 0;
+        List<Integer> winners = seats.stream().filter(this::validSeat).toList();
+        if (winners.isEmpty()) {
+            going.forEach(this::remove);
+            return;
+        }
+        for (int i = 0; i < going.size(); i++) {
+            BlockDisplay chip = going.get(i);
+            if (!chip.isValid()) continue;
+            double[] spot = layout.cardSpotUV(winners.get((i / MAX_CHIPS_PER_STACK) % winners.size()));
+            Location from = chip.getLocation();
+            Location to = layout.at(spot[0], spot[1], from.getY() - layout.getY() + 0.05);
+            Transformation t = chip.getTransformation();
+            Vector3f moved = new Vector3f(t.getTranslation()).add(
+                (float) (to.getX() - from.getX()), (float) (to.getY() - from.getY()), (float) (to.getZ() - from.getZ()));
+            leaving.add(chip);
+            later(1, () -> {
+                if (!chip.isValid()) return;
+                chip.setInterpolationDelay(0);
+                chip.setInterpolationDuration(CHIP_SWEEP_TICKS);
+                chip.setTransformation(new Transformation(moved, t.getLeftRotation(), t.getScale(), t.getRightRotation()));
+            });
+        }
+        later(CHIP_SWEEP_TICKS + 4, () -> {
+            for (BlockDisplay chip : going) {
+                leaving.remove(chip);
+                remove(chip);
+            }
+        });
     }
 
     private TextDisplay spawnText(Location loc, String text, float scale) {
