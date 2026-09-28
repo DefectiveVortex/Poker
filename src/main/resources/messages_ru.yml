@@ -86,8 +86,10 @@ first-time-guide:
   - "&7У вас 2 карты; 5 общих выходят в 3 этапа. Соберите лучшую комбинацию из 5 карт."
   - "&7Блайнды &e%small_blind%/%big_blind%&7. В свой ход нажмите в чате &cФолд&7, &aЧек&7/&eКолл &7или &6Рейз&7."
   - "&7Банк забирает лучшая рука или тот, кто ставит, пока все не сбросят. Подробнее: &e/poker help&7."
-turn-cards-preflop: "&7Ваши карты %cards% &8· &7У вас: &e%hand%"
-turn-cards: "&7Ваши карты %cards% &8· &7Стол %board% &8· &7У вас: &e%hand%"
+turn-line-preflop: "&7Ваши карты %cards%"
+turn-line: "&7Ваши карты %cards% &8· &7Стол %board%"
+# Appended to the line above only when interface.show-hand-strength is true
+turn-line-hand: " &8· &7У вас: &e%hand%"
 win-title: "&6&lВы выиграли %amount%"
 win-subtitle: "&e%hand%!"
 win-subtitle-uncontested: "&7все сбросили"

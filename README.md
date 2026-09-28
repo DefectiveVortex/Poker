@@ -65,6 +65,8 @@ Table settings are `seats`, `small-blind`, `big-blind`, `min-buy-in` and `max-bu
 
 `config.yml` holds the defaults for new tables (seats, blinds, buy-in range), the turn timer and pauses between hands, whether players use chest menus or chat buttons, the card display, the resource pack, sounds and particles. Every option is commented. Each table keeps its own settings once created; change them with `/poker settable`.
 
+By default the turn prompt shows your cards and the board but not what hand you hold, so players read their own hand. Set `interface.show-hand-strength: true` to add "You have: Two Pair, Kings and Sevens" to it. Showdowns and the winner's title always name the winning hand.
+
 Messages live in `messages.yml` (English) and `messages_<code>.yml`. Pick a language with `language:` in `config.yml` (`en`, `ko`, `tr`, `ru`), and apply it with `/poker reload`. New keys are added to your files automatically on update, and anything a translation lacks falls back to English.
 
 ## Building
