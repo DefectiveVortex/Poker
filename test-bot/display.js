@@ -131,7 +131,7 @@ module.exports = {
       let full = false;
       while (Date.now() < end) {
         if (count('@e[tag=poker-card-back]') >= 12) full = true;
-        if (full && count('@e[tag=poker-board]') === 5) break;
+        if (full && count('@e[tag=poker-board-public]') === 5) break;
         for (const b of six) {
           for (let i = seen.get(b); i < b.log.length; i++) {
             seen.set(b, i + 1);
@@ -143,7 +143,7 @@ module.exports = {
         await sleep(200);
       }
       check('a hand with all 6 seats dealt in', full, `backs=${count('@e[tag=poker-card-back]')}`);
-      check('river dealt with 6 players', count('@e[tag=poker-board]') === 5);
+      check('river dealt with 6 players', count('@e[tag=poker-board-public]') === 5);
       for (let s = 0; s < 6; s++) {
         const who = six[s].name;
         const y = Number((rcon(`data get entity ${who} Pos[1]`).match(/(-?[\d.]+)d?\s*$/) || [])[1]);
@@ -161,7 +161,7 @@ module.exports = {
         check(`seat ${s + 1}: eye ${(y + 1.62).toFixed(2)} (chair block -60 + 1.52 = -58.48 expected)`, Math.abs(y + 1.62 + 58.48) < 0.2, `feet y ${y}`);
         check(`seat ${s + 1}: own hole cards within 0.9 of the eye`, own >= 2, `${own} card entities`);
         check(`seat ${s + 1}: a board card within 2.2`, near >= 1, `${near}`);
-        check(`seat ${s + 1}: all 5 board cards within 2.9`, all === 5, `${all}`);
+        check(`seat ${s + 1}: a full board (5 cards) within 2.9`, all >= 5, `${all}`);
       }
     } finally {
       for (const b of extra) {
@@ -222,6 +222,14 @@ module.exports = {
     const ra = seenCards(a);
     check('at showdown both hands are face up for BotA', ra.seat1.face === 2 && ra.seat4.face === 2 && ra.seat4.back === 0,
       JSON.stringify(ra));
+    // Round 4: a seated player is sent only its own side's board copy -> exactly 5 card faces besides the hole cards.
+    for (const x of [a, b]) {
+      const seenFaces = Object.values(x.bot.entities).filter((e) => e.name === 'item_display'
+        && /card\/[shdc](?:10|[1-9jqk])|\b210(?:0[1-9]|[1-4]\d|5[0-2])\b/.test(JSON.stringify(e.metadata))).length;
+      const sc = seenCards(x);
+      const boardFaces = seenFaces - sc.seat1.face - sc.seat4.face;
+      check(`${x.name} is sent exactly one board copy (5 faces)`, boardFaces === 5, `${seenFaces} faces, ${boardFaces} not hole cards`);
+    }
   },
 
   // 3. Removing the table removes every entity it spawned. Runs last: rebuilds the table afterwards.
