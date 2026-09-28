@@ -53,6 +53,21 @@ function seenCards(bot) {
   return out;
 }
 
+// Which way a card's readable face points: (0,0,-1) rotated by its transformation.left_rotation [x,y,z,w] (D3).
+// Flat on the table = (0,1,0); the round-2 tilted hole cards gave y ~= 0.56.
+function faceNormal(sel) {
+  const out = rcon(`data get entity ${sel} transformation.left_rotation`);
+  const m = out.match(/\[(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?,\s*(-?[\d.eE-]+)f?\]/);
+  if (!m) throw new Error(`no left_rotation for ${sel}: ${out}`);
+  const [x, y, z, w] = m.slice(1).map(Number);
+  const v = [0, 0, -1];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const q = [x, y, z];
+  const t = cross(q, v).map((c) => 2 * c);          // t = 2 q×v
+  const qt = cross(q, t);
+  return v.map((c, i) => c + w * t[i] + qt[i]);     // v' = v + w t + q×t
+}
+
 async function sitTwo(bots) {
   const [a, b] = bots;
   a.cmd('/poker join 500 1');
@@ -155,6 +170,28 @@ module.exports = {
       await sleep(1500);
       for (const b of extra) await b.quit();
     }
+  },
+
+  // Round 3: hole cards lie flat like the board (face up), and opponents still see only backs.
+  async holeCardsFlat(bots) {
+    const [a, b] = bots;
+    check('a hand is dealt with 2 players', await sitTwo(bots));
+    await sleep(1000);
+    for (const [label, sel] of [
+      ['seat 1 face', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card,limit=1]'],
+      ['seat 1 back', '@e[type=item_display,tag=poker-seat-card-0,tag=poker-card-back,limit=1]'],
+      ['seat 4 face', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card,limit=1]'],
+      ['seat 4 back', '@e[type=item_display,tag=poker-seat-card-3,tag=poker-card-back,limit=1]'],
+    ]) {
+      const n = faceNormal(sel);
+      check(`${label} lies flat (face normal y > 0.98)`, n[1] > 0.98, n.map((c) => c.toFixed(3)).join(', '));
+    }
+    const sa = seenCards(a);
+    const sb = seenCards(b);
+    check('BotA still sees only its own faces and BotB\'s backs',
+      sa.seat1.face === 2 && sa.seat1.back === 0 && sa.seat4.face === 0 && sa.seat4.back === 2, JSON.stringify(sa));
+    check('BotB still sees only its own faces and BotA\'s backs',
+      sb.seat4.face === 2 && sb.seat4.back === 0 && sb.seat1.face === 0 && sb.seat1.back === 2, JSON.stringify(sb));
   },
 
   // 3. Removing the table removes every entity it spawned. Runs last: rebuilds the table afterwards.
