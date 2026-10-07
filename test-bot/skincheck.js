@@ -2,12 +2,9 @@
 // Usage: node skincheck.js <name> <name> [...]   (exit 0 = every name carries its own Mojang skin)
 // Each name joins as a bot; every bot reports the skin URL it was sent for the others (what a real client would
 // render), and that URL is compared with the one Mojang's session server gives for the account of that name.
-const mineflayer = require('mineflayer');
+const { TestBot } = require('./lib');
 const https = require('https');
 
-const HOST = process.env.MC_HOST || '127.0.0.1';
-const PORT = Number(process.env.MC_PORT || 25571);
-const VERSION = process.env.MC_VERSION || '26.1';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function getJson(url) {
@@ -31,13 +28,11 @@ async function mojangSkin(name) {
   return { exists: true, uuid: profile.id, url: textures.SKIN ? textures.SKIN.url : null };
 }
 
-function join(name) {
-  return new Promise((resolve, reject) => {
-    const bot = mineflayer.createBot({ host: HOST, port: PORT, username: name, version: VERSION, auth: 'offline' });
-    bot.once('spawn', () => resolve(bot));
-    bot.once('kicked', (r) => reject(new Error(`${name} kicked: ${JSON.stringify(r)}`)));
-    bot.once('error', reject);
-  });
+// TestBot answers the login-time resource pack offer and keeps movement packets off (see lib.js)
+async function join(name) {
+  const t = new TestBot(name);
+  await t.connect();
+  return t.bot;
 }
 
 (async () => {
