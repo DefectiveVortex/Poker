@@ -3,3 +3,4 @@ target/
 dependency-reduced-pom.xml
 *.bak-*
 test-bot/node_modules
+__pycache__/
