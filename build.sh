@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Build Poker inside the cached JDK 25 image, capped so it can't starve the live Minecraft server.
-# Serialised across all worktrees by /home/vortex/Poker-ops/build.lock (the Pi can afford one build at a time).
+# Serialised across all worktrees by /home/vortex/plugin-dev/build.lock (the Pi can afford one build at a time).
 # Usage: ./build.sh [maven args...]   (default: -q -B package, which also runs the tests)
 # Run it from the repo root or any worktree; it builds the tree it lives in.
 # Refuses while any *-test server container is up or MemAvailable < 1200 MB (checked again after the lock is taken, so a
 # queued build never starts unattended into a busy Pi). FORCE=1 overrides.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
-OPS=/home/vortex/Poker-ops
+OPS=/home/vortex/plugin-dev
 IMAGE=ghcr.io/pterodactyl/yolks:java_25
 ARGS=("$@")
 [ ${#ARGS[@]} -eq 0 ] && ARGS=(-q -B package)

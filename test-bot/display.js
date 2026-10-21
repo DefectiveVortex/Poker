@@ -1,4 +1,4 @@
-// Display checks (D1, from D3's spec in Poker-ops/test-server/bot/D3-display-notes.md).
+// Display checks (D1, from D3's spec in plugin-dev/test-server/bot/D3-display-notes.md).
 // Table from run.js setup: 6 seats centred on 0,-60,0 facing north. Cards are located through D3's tags, not geometry.
 const { TestBot, rcon, setBalance, sleep, check } = require('./lib');
 

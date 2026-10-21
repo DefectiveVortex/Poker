@@ -7,7 +7,7 @@ const { TestBot, rcon, check, summary, sleep } = require('./lib');
 
 const BOT_NAMES = ['BotA', 'BotB', 'BotC'];
 const ctx = {
-  serverDir: process.env.SERVER_DIR || '/home/vortex/Poker-ops/test-server/paper-26.3',
+  serverDir: process.env.SERVER_DIR || '/home/vortex/plugin-dev/test-server/paper-26.3',
   legacy: /^1\.20/.test(process.env.MC_VERSION || ''),
   tableId: null,
 };

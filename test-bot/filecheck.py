@@ -18,7 +18,7 @@ import time
 
 import yaml
 
-OPS = '/home/vortex/Poker-ops/test-server'
+OPS = '/home/vortex/plugin-dev/test-server'
 SERVER_DIR = os.environ.get('SERVER_DIR', OPS + '/paper-26.3')
 SERVER_SH = os.environ.get('SERVER_SH', OPS + '/server.sh')
 DATA = os.path.join(SERVER_DIR, 'plugins', 'Poker')
