@@ -72,7 +72,7 @@ Messages live in `messages.yml` (English) and `messages_<code>.yml`. Pick a lang
 
 ### Updates
 
-Poker checks [Modrinth](https://modrinth.com/plugin/pokerplugin) for new versions at startup and every `updates.interval-hours`, tells admins when they join, and with `updates.auto-download: true` puts the new jar in `plugins/update/`, so it's installed on the next restart. The running version is never replaced. `updates.channel` is `release`, `beta` or `alpha`; set `updates.check: false` to turn it all off.
+Poker checks [Modrinth](https://modrinth.com/plugin/pokerplugin) for new versions at startup and every `updates.interval-hours`, and tells admins when they join. It downloads nothing on its own: `/poker update` puts the new jar in `plugins/update/` when an admin asks, so it's installed on the next restart, and `updates.auto-download: true` (off by default) lets it do that by itself. The running version is never replaced. `updates.channel` is `release`, `beta` or `alpha`; set `updates.check: false` to turn it all off.
 
 ### Your files survive updates and mistakes
 

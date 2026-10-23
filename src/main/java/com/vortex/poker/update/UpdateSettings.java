@@ -7,7 +7,7 @@ public record UpdateSettings(boolean check, boolean autoDownload, Channel channe
 
     public static final String DEFAULT_API = "https://api.modrinth.com/v2";
 
-    public static final UpdateSettings DEFAULT = new UpdateSettings(true, true, Channel.RELEASE, 12, DEFAULT_API);
+    public static final UpdateSettings DEFAULT = new UpdateSettings(true, false, Channel.RELEASE, 12, DEFAULT_API);
 
     /** Missing or bad values fall back to the defaults. {@code api-url} is for testing against a mock. */
     public static UpdateSettings from(ConfigurationSection s) {

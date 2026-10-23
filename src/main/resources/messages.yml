@@ -6,7 +6,7 @@
 # Set a message to "" to stop it being sent at all (e.g. to cut chat spam).
 
 # File format version, used to upgrade this file when Poker updates. Don't change it.
-config-version: 1
+config-version: 2
 
 # Core messages
 prefix: "&8[&2Poker&8] &r"

@@ -4,7 +4,7 @@
 # Colour codes: &0-&9, &a-&f, &l bold, &n underline, &o italic, &r reset. %placeholders% are filled in by the plugin.
 
 # Версия формата файла: нужна, чтобы обновлять его вместе с плагином. Не меняйте её.
-config-version: 1
+config-version: 2
 
 prefix: "&8[&2Покер&8] &r"
 no-permission: "&cУ вас нет прав на это!"

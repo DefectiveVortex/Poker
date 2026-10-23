@@ -4,7 +4,7 @@
 # Colour codes: &0-&9, &a-&f, &l bold, &n underline, &o italic, &r reset. %placeholders% are filled in by the plugin.
 
 # 파일 형식 버전입니다. 포커를 업데이트할 때 이 파일을 올리는 데 씁니다. 바꾸지 마세요.
-config-version: 1
+config-version: 2
 
 prefix: "&8[&2포커&8] &r"
 no-permission: "&c이 명령어를 쓸 권한이 없습니다."

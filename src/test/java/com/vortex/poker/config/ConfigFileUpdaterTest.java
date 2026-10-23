@@ -343,7 +343,7 @@ class ConfigFileUpdaterTest {
         ConfigFileUpdater.Result r = update(f, "config.yml");
 
         YamlConfiguration now = yaml(text(f));
-        assertEquals(1, now.getInt(ConfigFileUpdater.VERSION_KEY));
+        assertEquals(ConfigFileUpdater.CURRENT_VERSION, now.getInt(ConfigFileUpdater.VERSION_KEY));
         assertTrue(now.getBoolean("interface.show-hand-strength"), "moved from the top level");
         assertFalse(now.contains("show-hand-strength"));
         for (String key : ConfigFileUpdater.leaves(before)) {
@@ -363,13 +363,13 @@ class ConfigFileUpdaterTest {
         assertEquals(original, text(new File(dir, "config.yml.pre-update.bak")));
         assertEquals(List.of("my-server-note"), r.unknownKeys());
         assertTrue(warnings().contains("config.yml: unknown key(s) left as they are: my-server-note"), warnings().toString());
-        assertTrue(infos().stream().anyMatch(i -> i.startsWith("Updated config.yml: config-version 0 -> 1")), infos().toString());
+        assertTrue(infos().stream().anyMatch(i -> i.startsWith("Updated config.yml: config-version 0 -> 2")), infos().toString());
         assertEquals(0, ConfigValidator.validateConfig(r.config(), yaml(resource("config.yml")), log));
     }
 
     @Test
     void showHandStrengthUnderGameMovesToo() throws IOException {
-        File f = write("config.yml", resource("config.yml").replace("config-version: 1", "")
+        File f = write("config.yml", resource("config.yml").replace("config-version: 2", "")
             .replace("  show-hand-strength: false\n", "")
             .replace("  ready-timeout-seconds: 30", "  ready-timeout-seconds: 30\n  show-hand-strength: true"));
         update(f, "config.yml");
@@ -409,8 +409,35 @@ class ConfigFileUpdaterTest {
     }
 
     @Test
+    void autoDownloadFromOneZeroZeroIsTurnedOffOnce() throws IOException {
+        // 1.0.0 wrote config-version 1 with auto-download on by default: nobody opted in, so it goes off.
+        String v1 = resource("config.yml").replace("config-version: 2", "config-version: 1")
+            .replace("  auto-download: false", "  auto-download: true");
+        File f = write("config.yml", v1);
+        ConfigFileUpdater.Result r = update(f, "config.yml");
+        assertEquals(1, r.migrated());
+        assertFalse(yaml(text(f)).getBoolean("updates.auto-download"));
+        assertEquals(2, yaml(text(f)).getInt(ConfigFileUpdater.VERSION_KEY));
+        assertTrue(infos().stream().anyMatch(i -> i.contains("turned updates.auto-download off")), infos().toString());
+
+        // An admin who opts in afterwards keeps it: the migration doesn't run again.
+        write("config.yml", text(f).replace("  auto-download: false", "  auto-download: true"));
+        ConfigFileUpdater.Result again = update(f, "config.yml");
+        assertEquals(0, again.migrated());
+        assertTrue(yaml(text(f)).getBoolean("updates.auto-download"));
+    }
+
+    @Test
+    void autoDownloadAlreadyOffIsLeftAlone() throws IOException {
+        File f = write("config.yml", resource("config.yml").replace("config-version: 2", "config-version: 1"));
+        ConfigFileUpdater.Result r = update(f, "config.yml");
+        assertEquals(0, r.migrated());
+        assertFalse(yaml(text(f)).getBoolean("updates.auto-download"));
+    }
+
+    @Test
     void aNewerFileIsNotMigratedOrDowngraded() throws IOException {
-        File f = write("config.yml", resource("config.yml").replace("config-version: 1", "config-version: 7"));
+        File f = write("config.yml", resource("config.yml").replace("config-version: 2", "config-version: 7"));
         ConfigFileUpdater.Result r = update(f, "config.yml");
         assertFalse(r.saved());
         assertEquals(7, r.config().getInt(ConfigFileUpdater.VERSION_KEY));
@@ -433,7 +460,7 @@ class ConfigFileUpdaterTest {
         assertFalse(now.contains("turn-cards-preflop"), "a removed key with its old default is dropped");
         assertEquals("&7Cards %cards% | board %board%", now.getString("turn-cards"), "a customised removed key stays");
         assertEquals(List.of("turn-cards"), r.unknownKeys());
-        assertEquals(1, now.getInt(ConfigFileUpdater.VERSION_KEY));
+        assertEquals(ConfigFileUpdater.CURRENT_VERSION, now.getInt(ConfigFileUpdater.VERSION_KEY));
         assertEquals(original, text(new File(dir, "messages.yml.pre-update.bak")));
     }
 

@@ -33,6 +33,9 @@ public final class ConfigMigrations {
                 c -> ConfigFileUpdater.move(c, "show-hand-strength", "interface.show-hand-strength")
                     + ConfigFileUpdater.move(c, "game.show-hand-strength", "interface.show-hand-strength")
                     + ConfigFileUpdater.move(c, "interface.hand-strength", "interface.show-hand-strength")));
+            // 1.0.1: downloads need the admin's opt-in. 1.0.0 shipped auto-download on, so nobody chose it: turn it off once.
+            list.add(new Migration(2, "turned updates.auto-download off: Poker no longer downloads updates unless you"
+                + " set it to true (or run /poker update)", ConfigMigrations::autoDownloadOff));
         }
         List<Map<?, ?>> history = history(resourceName);
         if (!history.isEmpty()) {
@@ -41,6 +44,14 @@ public final class ConfigMigrations {
                 c -> applyHistory(c, history)));
         }
         return list;
+    }
+
+    static int autoDownloadOff(ConfigurationSection c) {
+        if (!c.getBoolean("updates.auto-download", false)) {
+            return 0;
+        }
+        c.set("updates.auto-download", false);
+        return 1;
     }
 
     /** Keys an admin may add that the bundled file leaves out on purpose: kept without a warning. */

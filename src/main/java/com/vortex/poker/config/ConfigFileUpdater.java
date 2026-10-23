@@ -41,7 +41,7 @@ import java.util.logging.Logger;
 public final class ConfigFileUpdater {
     public static final String VERSION_KEY = "config-version";
     /** config-version written by this build. A file without the key is pre-1.0 (version 0). */
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
 
     /** One step in a file's history: run on files older than {@code toVersion}. Returns how many keys it changed. */
     public record Migration(int toVersion, String description, ToIntFunction<ConfigurationSection> apply) {

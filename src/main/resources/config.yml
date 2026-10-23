@@ -5,7 +5,7 @@
 # moved to config.yml.broken-<date> and rebuilt, keeping every setting that could still be read.
 
 # File format version, used to upgrade this file when Poker updates. Don't change it.
-config-version: 1
+config-version: 2
 
 # Language for player-facing messages: en, ko (Korean), tr (Turkish), ru (Russian).
 # English is read from messages.yml, other languages from messages_<code>.yml, which is
@@ -124,8 +124,9 @@ performance:
 updates:
   # Look for new Poker versions on Modrinth at startup and every interval-hours
   check: true
-  # Download a newer version into plugins/update/ so it installs on the next restart
-  auto-download: true
+  # Off by default: Poker only tells admins about a new version. Set to true to let Poker download it into
+  # plugins/update/ by itself, so it installs on the next restart. /poker update downloads it on request.
+  auto-download: false
   # release, beta or alpha. beta also takes releases; alpha takes everything
   channel: release
   interval-hours: 12

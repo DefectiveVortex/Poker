@@ -4,7 +4,7 @@
 # Colour codes: &0-&9, &a-&f, &l bold, &n underline, &o italic, &r reset. %placeholders% are filled in by the plugin.
 
 # Dosya biçimi sürümü; Poker güncellenince bu dosyayı yükseltmek için kullanılır. Değiştirmeyin.
-config-version: 1
+config-version: 2
 
 prefix: "&8[&2Poker&8] &r"
 no-permission: "&cBunu yapmak için yetkiniz yok!"

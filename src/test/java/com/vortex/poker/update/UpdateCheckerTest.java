@@ -295,7 +295,8 @@ class UpdateCheckerTest {
         UpdateSettings s = UpdateSettings.from(yaml.getConfigurationSection("updates"));
         assertEquals(Channel.RELEASE, s.channel());
         assertEquals(1, s.intervalHours());
-        assertTrue(s.check() && s.autoDownload());
+        assertTrue(s.check());
+        assertFalse(s.autoDownload(), "downloads are opt-in");
         assertEquals("http://172.17.0.1:25590/v2", s.apiUrl());
         assertEquals(UpdateSettings.DEFAULT_API, UpdateSettings.from(null).apiUrl());
     }
